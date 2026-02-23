@@ -128,12 +128,12 @@ export default function WavelengthDial({
 
                 {/* Daraltma jokeri göstergesi */}
                 {showNarrowHint && (
-                    <path
-                        d={createArcPath(narrowHalf === 'left' ? 90 : 0, narrowHalf === 'left' ? 180 : 90, 0, 200)}
-                        fill="rgba(139, 92, 246, 0.2)"
-                        stroke="rgba(139, 92, 246, 0.4)"
-                        strokeWidth="2"
-                    />
+                    <g>
+                        <rect x="150" y="80" width="200" height="40" rx="10" fill="rgba(139, 92, 246, 0.9)" />
+                        <text x="250" y="105" textAnchor="middle" fill="white" fontSize="16" fontWeight="bold">
+                            Hedef {narrowHalf === 'left' ? 'SOL' : 'SAĞ'} Yarıda
+                        </text>
+                    </g>
                 )}
 
                 {/* Hedef dilimleri */}
@@ -179,13 +179,12 @@ export default function WavelengthDial({
                 <line x1="250" y1="250" x2={needleEnd.x} y2={needleEnd.y}
                     stroke="#1a1a2e" strokeWidth="4" strokeLinecap="round" filter="url(#needle-shadow)"
                     style={{ transition: isDragging.current ? 'none' : 'all 0.15s ease-out' }} />
-                {/* İbre ucu — dinamik glow */}
+                {/* İbre ucu */}
                 <circle cx={needleEnd.x} cy={needleEnd.y} r="10"
-                    fill={needleTipColor} stroke="#1a1a2e" strokeWidth="3"
-                    filter={warmth > 0.3 ? "url(#warm-glow)" : "url(#needle-shadow)"}
+                    fill="white" stroke="#1a1a2e" strokeWidth="3"
+                    filter="url(#needle-shadow)"
                     style={{
                         transition: isDragging.current ? 'none' : 'all 0.15s ease-out',
-                        ...(glowColor !== 'none' ? { filter: `drop-shadow(0 0 ${warmth * 12}px ${glowColor})` } : {}),
                     }} />
 
                 {/* Hareket ettiren */}
