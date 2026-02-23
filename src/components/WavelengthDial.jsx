@@ -1,7 +1,5 @@
 import { useRef, useCallback, useEffect, useState } from 'react'
-
-// Wavelength kadranı — Referans görsele uygun:
-// Krem arka planlı yarım daire, üçgen dilimler (4=mavi, 3=turuncu, 2=sarı)
+import { playTick } from '../utils/sounds'
 
 export default function WavelengthDial({
     targetAngle = 90,
@@ -12,22 +10,18 @@ export default function WavelengthDial({
     leftLabel = "Sol",
     rightLabel = "Sağ",
     moverInfo = null,
+    showNarrowHint = false,
 }) {
     const svgRef = useRef(null)
     const isDragging = useRef(false)
     const [localAngle, setLocalAngle] = useState(dialAngle)
+    const lastTickAngle = useRef(dialAngle)
 
-    useEffect(() => {
-        setLocalAngle(dialAngle)
-    }, [dialAngle])
+    useEffect(() => { setLocalAngle(dialAngle) }, [dialAngle])
 
     const angleToPosition = (angle, r = 190) => {
         const rad = (angle * Math.PI) / 180
-        const cx = 250, cy = 250
-        return {
-            x: cx - r * Math.cos(rad),
-            y: cy - r * Math.sin(rad),
-        }
+        return { x: 250 - r * Math.cos(rad), y: 250 - r * Math.sin(rad) }
     }
 
     const getAngleFromEvent = useCallback((e) => {
@@ -36,24 +30,9 @@ export default function WavelengthDial({
         const rect = svg.getBoundingClientRect()
         const cx = rect.left + rect.width / 2
         const cy = rect.top + rect.height
-
-        let clientX, clientY
-        if (e.touches) {
-            clientX = e.touches[0].clientX
-            clientY = e.touches[0].clientY
-        } else {
-            clientX = e.clientX
-            clientY = e.clientY
-        }
-
-        // Yön düzeltmesi: sağa = sağa, sola = sola
-        const dx = cx - clientX
-        const dy = cy - clientY
-        let angle = Math.atan2(dy, dx) * (180 / Math.PI)
-        if (angle < 0) angle = 0
-        if (angle > 180) angle = 180
-        angle = Math.max(5, Math.min(175, angle))
-        return angle
+        const [clientX, clientY] = e.touches ? [e.touches[0].clientX, e.touches[0].clientY] : [e.clientX, e.clientY]
+        let angle = Math.atan2(cy - clientY, cx - clientX) * (180 / Math.PI)
+        return Math.max(5, Math.min(175, angle < 0 ? 0 : angle > 180 ? 180 : angle))
     }, [localAngle])
 
     const handlePointerDown = useCallback((e) => {
@@ -69,13 +48,16 @@ export default function WavelengthDial({
         if (!isDragging.current || disabled) return
         e.preventDefault()
         const angle = getAngleFromEvent(e)
+        // Tick sesi — her 5 derecede bir
+        if (Math.abs(angle - lastTickAngle.current) > 5) {
+            playTick()
+            lastTickAngle.current = angle
+        }
         setLocalAngle(angle)
         if (onAngleChange) onAngleChange(angle)
     }, [disabled, getAngleFromEvent, onAngleChange])
 
-    const handlePointerUp = useCallback(() => {
-        isDragging.current = false
-    }, [])
+    const handlePointerUp = useCallback(() => { isDragging.current = false }, [])
 
     useEffect(() => {
         window.addEventListener('mousemove', handlePointerMove)
@@ -90,205 +72,146 @@ export default function WavelengthDial({
         }
     }, [handlePointerMove, handlePointerUp])
 
-    // Üçgen dilim oluşturucu (merkezden dışa doğru üçgen)
+    // Üçgen dilim path
     const createTrianglePath = (centerAngle, halfSpread, radius) => {
         const cx = 250, cy = 250
-        const toRad = (a) => (a * Math.PI) / 180
-        const startA = centerAngle - halfSpread
-        const endA = centerAngle + halfSpread
-
-        const x1 = cx - radius * Math.cos(toRad(startA))
-        const y1 = cy - radius * Math.sin(toRad(startA))
-        const x2 = cx - radius * Math.cos(toRad(endA))
-        const y2 = cy - radius * Math.sin(toRad(endA))
-
-        // Üçgen: merkez noktası → dış kenar yayı → geri merkez
-        const largeArc = (endA - startA) > 180 ? 1 : 0
-        return `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 0 ${x2} ${y2} Z`
+        const toRad = a => (a * Math.PI) / 180
+        const sA = centerAngle - halfSpread, eA = centerAngle + halfSpread
+        const x1 = cx - radius * Math.cos(toRad(sA)), y1 = cy - radius * Math.sin(toRad(sA))
+        const x2 = cx - radius * Math.cos(toRad(eA)), y2 = cy - radius * Math.sin(toRad(eA))
+        return `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 0 0 ${x2} ${y2} Z`
     }
 
-    // Arc path oluşturucu (yarım daire arka plan için)
+    // Arc path (yarım daire)
     const createArcPath = (startAngle, endAngle, innerR, outerR) => {
-        const cx = 250, cy = 250
-        const toRad = (a) => (a * Math.PI) / 180
-        const x1o = cx - outerR * Math.cos(toRad(startAngle))
-        const y1o = cy - outerR * Math.sin(toRad(startAngle))
-        const x2o = cx - outerR * Math.cos(toRad(endAngle))
-        const y2o = cy - outerR * Math.sin(toRad(endAngle))
-        const x1i = cx - innerR * Math.cos(toRad(endAngle))
-        const y1i = cy - innerR * Math.sin(toRad(endAngle))
-        const x2i = cx - innerR * Math.cos(toRad(startAngle))
-        const y2i = cy - innerR * Math.sin(toRad(startAngle))
-        const largeArc = endAngle - startAngle > 180 ? 1 : 0
-        return `M ${x1o} ${y1o} A ${outerR} ${outerR} 0 ${largeArc} 0 ${x2o} ${y2o} L ${x1i} ${y1i} A ${innerR} ${innerR} 0 ${largeArc} 1 ${x2i} ${y2i} Z`
+        const cx = 250, cy = 250, toRad = a => (a * Math.PI) / 180
+        const x1o = cx - outerR * Math.cos(toRad(startAngle)), y1o = cy - outerR * Math.sin(toRad(startAngle))
+        const x2o = cx - outerR * Math.cos(toRad(endAngle)), y2o = cy - outerR * Math.sin(toRad(endAngle))
+        const x1i = cx - innerR * Math.cos(toRad(endAngle)), y1i = cy - innerR * Math.sin(toRad(endAngle))
+        const x2i = cx - innerR * Math.cos(toRad(startAngle)), y2i = cy - innerR * Math.sin(toRad(startAngle))
+        const la = endAngle - startAngle > 180 ? 1 : 0
+        return `M ${x1o} ${y1o} A ${outerR} ${outerR} 0 ${la} 0 ${x2o} ${y2o} L ${x1i} ${y1i} A ${innerR} ${innerR} 0 ${la} 1 ${x2i} ${y2i} Z`
     }
 
-    // İbre ucu konumu
     const needleEnd = angleToPosition(localAngle, 200)
 
-    // Hedef üçgen dilimleri — referansa uygun: 4=mavi, 3=turuncu, 2=sarı
-    // Dıştan içe sıralı render (2 en dış, 4 en iç)
+    // Dinamik glow — hedef yakınlığına göre (sadece tahmin modunda)
+    const distance = Math.abs(localAngle - targetAngle)
+    const warmth = (!showTarget && !disabled) ? Math.max(0, 1 - distance / 60) : 0
+    const glowColor = warmth > 0.3
+        ? `rgba(251, 191, 36, ${warmth * 0.4})`
+        : 'none'
+    const needleTipColor = warmth > 0.3
+        ? `hsl(${45 - warmth * 20}, ${warmth * 80 + 20}%, ${100 - warmth * 30}%)`
+        : 'white'
+
     const zones = [
-        { delta: 24, color: '#F5C842', label: '2' },  // Sarı (dış)
-        { delta: 16, color: '#E8882D', label: '3' },  // Turuncu (orta)
-        { delta: 8, color: '#3B82F6', label: '4' },  // Mavi (iç)
+        { delta: 24, color: '#F5C842', label: '2' },
+        { delta: 16, color: '#E8882D', label: '3' },
+        { delta: 8, color: '#3B82F6', label: '4' },
     ]
+
+    // Daraltma jokeri — hedefin hangi yarıda olduğunu göster
+    const narrowHalf = targetAngle < 90 ? 'left' : 'right'
 
     return (
         <div className="flex flex-col items-center w-full select-none">
-            {/* Etiketler */}
             <div className="flex justify-between w-full max-w-lg mb-2 px-2">
                 <div className="flex items-center gap-2">
                     <span className="text-lg opacity-50">←</span>
-                    <span className="text-sm md:text-base font-bold text-slate-200">
-                        {leftLabel}
-                    </span>
+                    <span className="text-sm md:text-base font-bold text-slate-200">{leftLabel}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <span className="text-sm md:text-base font-bold text-slate-200">
-                        {rightLabel}
-                    </span>
+                    <span className="text-sm md:text-base font-bold text-slate-200">{rightLabel}</span>
                     <span className="text-lg opacity-50">→</span>
                 </div>
             </div>
 
-            {/* SVG Kadran */}
-            <svg
-                ref={svgRef}
-                viewBox="0 0 500 290"
-                className="w-full max-w-lg cursor-pointer"
-                onMouseDown={handlePointerDown}
-                onTouchStart={handlePointerDown}
-                style={{ touchAction: 'none' }}
-            >
+            <svg ref={svgRef} viewBox="0 0 500 290" className="w-full max-w-lg cursor-pointer"
+                onMouseDown={handlePointerDown} onTouchStart={handlePointerDown} style={{ touchAction: 'none' }}>
                 <defs>
-                    <filter id="needle-shadow">
-                        <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#000" floodOpacity="0.5" />
-                    </filter>
+                    <filter id="needle-shadow"><feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#000" floodOpacity="0.5" /></filter>
+                    {warmth > 0.3 && (
+                        <filter id="warm-glow">
+                            <feGaussianBlur stdDeviation="4" result="blur" />
+                            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                        </filter>
+                    )}
                 </defs>
 
-                {/* Ana yarım daire — krem arka plan */}
-                <path
-                    d={createArcPath(0, 180, 0, 200)}
-                    fill="#E8DCC8"
-                    stroke="#1a1a2e"
-                    strokeWidth="3"
-                />
+                {/* Krem arka plan */}
+                <path d={createArcPath(0, 180, 0, 200)} fill="#E8DCC8" stroke="#1a1a2e" strokeWidth="3" />
 
-                {/* Hedef bölgesi üçgen dilimleri — dıştan içe render */}
-                {showTarget && zones.map((zone, idx) => (
+                {/* Daraltma jokeri göstergesi */}
+                {showNarrowHint && (
                     <path
-                        key={`zone-${idx}`}
-                        d={createTrianglePath(targetAngle, zone.delta, 195)}
-                        fill={zone.color}
-                        stroke="#1a1a2e"
-                        strokeWidth="1.5"
+                        d={createArcPath(narrowHalf === 'left' ? 90 : 0, narrowHalf === 'left' ? 180 : 90, 0, 200)}
+                        fill="rgba(139, 92, 246, 0.2)"
+                        stroke="rgba(139, 92, 246, 0.4)"
+                        strokeWidth="2"
                     />
+                )}
+
+                {/* Hedef dilimleri */}
+                {showTarget && zones.map((zone, idx) => (
+                    <path key={idx} d={createTrianglePath(targetAngle, zone.delta, 195)} fill={zone.color} stroke="#1a1a2e" strokeWidth="1.5" />
                 ))}
 
-                {/* Puan etiketleri — her dilimde sol ve sağ taraf */}
+                {/* Puan etiketleri */}
                 {showTarget && (() => {
                     const labels = []
-                    // 2 puan etiketleri (sol ve sağ dış bant)
-                    const pos2L = angleToPosition(targetAngle - 20, 120)
-                    const pos2R = angleToPosition(targetAngle + 20, 120)
+                    const p2L = angleToPosition(targetAngle - 20, 120), p2R = angleToPosition(targetAngle + 20, 120)
                     labels.push(
-                        <text key="l2l" x={pos2L.x} y={pos2L.y} textAnchor="middle" dominantBaseline="middle" fill="#1a1a2e" fontSize="16" fontWeight="800">2</text>,
-                        <text key="l2r" x={pos2R.x} y={pos2R.y} textAnchor="middle" dominantBaseline="middle" fill="#1a1a2e" fontSize="16" fontWeight="800">2</text>,
+                        <text key="2l" x={p2L.x} y={p2L.y} textAnchor="middle" dominantBaseline="middle" fill="#1a1a2e" fontSize="16" fontWeight="800">2</text>,
+                        <text key="2r" x={p2R.x} y={p2R.y} textAnchor="middle" dominantBaseline="middle" fill="#1a1a2e" fontSize="16" fontWeight="800">2</text>,
                     )
-                    // 3 puan etiketleri
-                    const pos3L = angleToPosition(targetAngle - 12, 100)
-                    const pos3R = angleToPosition(targetAngle + 12, 100)
+                    const p3L = angleToPosition(targetAngle - 12, 100), p3R = angleToPosition(targetAngle + 12, 100)
                     labels.push(
-                        <text key="l3l" x={pos3L.x} y={pos3L.y} textAnchor="middle" dominantBaseline="middle" fill="#1a1a2e" fontSize="16" fontWeight="800">3</text>,
-                        <text key="l3r" x={pos3R.x} y={pos3R.y} textAnchor="middle" dominantBaseline="middle" fill="#1a1a2e" fontSize="16" fontWeight="800">3</text>,
+                        <text key="3l" x={p3L.x} y={p3L.y} textAnchor="middle" dominantBaseline="middle" fill="#1a1a2e" fontSize="16" fontWeight="800">3</text>,
+                        <text key="3r" x={p3R.x} y={p3R.y} textAnchor="middle" dominantBaseline="middle" fill="#1a1a2e" fontSize="16" fontWeight="800">3</text>,
                     )
-                    // 4 puan etiketi (merkez)
-                    const pos4 = angleToPosition(targetAngle, 75)
-                    labels.push(
-                        <text key="l4" x={pos4.x} y={pos4.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="18" fontWeight="900">4</text>,
-                    )
+                    const p4 = angleToPosition(targetAngle, 75)
+                    labels.push(<text key="4" x={p4.x} y={p4.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="18" fontWeight="900">4</text>)
                     return labels
                 })()}
 
-                {/* Hedef merkez çizgisi */}
                 {showTarget && (() => {
                     const tp = angleToPosition(targetAngle, 195)
-                    return (
-                        <line
-                            x1="250" y1="250"
-                            x2={tp.x} y2={tp.y}
-                            stroke="#1a1a2e"
-                            strokeWidth="2"
-                            opacity="0.6"
-                        />
-                    )
+                    return <line x1="250" y1="250" x2={tp.x} y2={tp.y} stroke="#1a1a2e" strokeWidth="2" opacity="0.6" />
                 })()}
 
-                {/* Derece çizgileri (ince tick'ler) */}
+                {/* Tick çizgileri */}
                 {Array.from({ length: 37 }).map((_, i) => {
-                    const angle = i * 5
-                    const isMain = i % 4 === 0
-                    const inner = angleToPosition(angle, isMain ? 190 : 194)
-                    const outer = angleToPosition(angle, 200)
-                    return (
-                        <line
-                            key={`tick-${i}`}
-                            x1={inner.x} y1={inner.y}
-                            x2={outer.x} y2={outer.y}
-                            stroke="#1a1a2e"
-                            strokeWidth={isMain ? "1.5" : "0.7"}
-                            opacity="0.3"
-                        />
-                    )
+                    const angle = i * 5, isMain = i % 4 === 0
+                    const inner = angleToPosition(angle, isMain ? 190 : 194), outer = angleToPosition(angle, 200)
+                    return <line key={i} x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y} stroke="#1a1a2e" strokeWidth={isMain ? "1.5" : "0.7"} opacity="0.3" />
                 })}
 
-                {/* Merkez noktası */}
+                {/* Merkez */}
                 <circle cx="250" cy="250" r="12" fill="#1a1a2e" stroke="#333" strokeWidth="2" />
                 <circle cx="250" cy="250" r="5" fill="#555" />
 
-                {/* İbre çizgisi */}
-                <line
-                    x1="250" y1="250"
-                    x2={needleEnd.x} y2={needleEnd.y}
-                    stroke="#1a1a2e"
-                    strokeWidth="4"
-                    strokeLinecap="round"
-                    filter="url(#needle-shadow)"
-                    style={{ transition: isDragging.current ? 'none' : 'all 0.15s ease-out' }}
-                />
-                {/* İbre ucu */}
-                <circle
-                    cx={needleEnd.x} cy={needleEnd.y}
-                    r="10"
-                    fill="white"
-                    stroke="#1a1a2e"
-                    strokeWidth="3"
-                    filter="url(#needle-shadow)"
-                    style={{ transition: isDragging.current ? 'none' : 'all 0.15s ease-out' }}
-                />
+                {/* İbre */}
+                <line x1="250" y1="250" x2={needleEnd.x} y2={needleEnd.y}
+                    stroke="#1a1a2e" strokeWidth="4" strokeLinecap="round" filter="url(#needle-shadow)"
+                    style={{ transition: isDragging.current ? 'none' : 'all 0.15s ease-out' }} />
+                {/* İbre ucu — dinamik glow */}
+                <circle cx={needleEnd.x} cy={needleEnd.y} r="10"
+                    fill={needleTipColor} stroke="#1a1a2e" strokeWidth="3"
+                    filter={warmth > 0.3 ? "url(#warm-glow)" : "url(#needle-shadow)"}
+                    style={{
+                        transition: isDragging.current ? 'none' : 'all 0.15s ease-out',
+                        ...(glowColor !== 'none' ? { filter: `drop-shadow(0 0 ${warmth * 12}px ${glowColor})` } : {}),
+                    }} />
 
-                {/* Hareket ettiren bilgisi */}
+                {/* Hareket ettiren */}
                 {moverInfo && (
                     <g>
-                        <text
-                            x={needleEnd.x} y={needleEnd.y - 22}
-                            textAnchor="middle" dominantBaseline="middle"
-                            fontSize="16"
-                        >
-                            {moverInfo.avatar}
-                        </text>
-                        <text
-                            x={needleEnd.x} y={needleEnd.y - 38}
-                            textAnchor="middle" dominantBaseline="middle"
-                            fill="white" fontSize="10" fontWeight="600"
-                        >
-                            {moverInfo.name}
-                        </text>
+                        <text x={needleEnd.x} y={needleEnd.y - 22} textAnchor="middle" fontSize="16">{moverInfo.avatar}</text>
+                        <text x={needleEnd.x} y={needleEnd.y - 38} textAnchor="middle" fill="white" fontSize="10" fontWeight="600">{moverInfo.name}</text>
                     </g>
                 )}
 
-                {/* Alt düz çizgi */}
                 <line x1="45" y1="252" x2="455" y2="252" stroke="#1a1a2e" strokeWidth="3" />
             </svg>
         </div>
