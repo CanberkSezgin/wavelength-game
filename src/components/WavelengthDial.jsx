@@ -1,12 +1,7 @@
 import { useRef, useCallback, useEffect, useState } from 'react'
 
 // Yarım daire "Wavelength" kadranı bileşeni
-// targetAngle: Gizli hedefin merkez açısı (0-180)
-// dialAngle: İbrenin mevcut açısı (0-180)
-// onAngleChange: İbre hareket ettiğinde çağrılır
-// showTarget: Hedef gösterilsin mi
-// disabled: İbre sürüklenebilir mi
-// phase: Oyun fazı (clue, guess, reveal)
+// Referans görseldeki gibi sade, krem/beyaz arka plan, puanlı bölgeler
 
 export default function WavelengthDial({
     targetAngle = 90,
@@ -26,9 +21,9 @@ export default function WavelengthDial({
         setLocalAngle(dialAngle)
     }, [dialAngle])
 
-    const angleToPosition = (angle) => {
+    const angleToPosition = (angle, r = 190) => {
         const rad = (angle * Math.PI) / 180
-        const cx = 250, cy = 250, r = 200
+        const cx = 250, cy = 250
         return {
             x: cx - r * Math.cos(rad),
             y: cy - r * Math.sin(rad),
@@ -56,7 +51,6 @@ export default function WavelengthDial({
         let angle = Math.atan2(dy, dx) * (180 / Math.PI)
         if (angle < 0) angle = 0
         if (angle > 180) angle = 180
-        // En az 5, en çok 175 olsun
         angle = Math.max(5, Math.min(175, angle))
         return angle
     }, [localAngle])
@@ -95,7 +89,7 @@ export default function WavelengthDial({
         }
     }, [handlePointerMove, handlePointerUp])
 
-    // Hedef bölgesi arc path'leri
+    // Arc path oluştur
     const createArcPath = (startAngle, endAngle, innerR, outerR) => {
         const cx = 250, cy = 250
         const toRad = (a) => (a * Math.PI) / 180
@@ -111,28 +105,34 @@ export default function WavelengthDial({
         return `M ${x1o} ${y1o} A ${outerR} ${outerR} 0 ${largeArc} 0 ${x2o} ${y2o} L ${x1i} ${y1i} A ${innerR} ${innerR} 0 ${largeArc} 1 ${x2i} ${y2i} Z`
     }
 
-    // Spektrum renkleri – yarım daire boyunca soldan sağa gökkuşağı
-    const spectrumSegments = 36
-    const segmentAngle = 180 / spectrumSegments
-
     // İbre ucu konumu
-    const needleEnd = angleToPosition(localAngle)
+    const needleEnd = angleToPosition(localAngle, 195)
 
     // Hedef bölgesi: 4 puan = ±8°, 3 puan = ±16°, 2 puan = ±24°
     const targetZones = [
-        { delta: 24, color: 'rgba(34,197,94,0.25)', points: 2 },
-        { delta: 16, color: 'rgba(34,197,94,0.4)', points: 3 },
-        { delta: 8, color: 'rgba(34,197,94,0.7)', points: 4 },
+        { delta: 24, color: '#c2956a', label: '2' },
+        { delta: 16, color: '#d4a76a', label: '3' },
+        { delta: 8, color: '#e8c547', label: '4' },
     ]
+
+    // Puan etiketlerini yerleştir
+    const getZoneLabelPos = (targetAng, delta, r = 155) => {
+        const leftAngle = targetAng - delta + (delta > 8 ? (delta === 24 ? 4 : 4) : 0)
+        const rightAngle = targetAng + delta - (delta > 8 ? (delta === 24 ? 4 : 4) : 0)
+        return {
+            left: angleToPosition(leftAngle, r),
+            right: angleToPosition(rightAngle, r),
+        }
+    }
 
     return (
         <div className="flex flex-col items-center w-full select-none">
             {/* Etiketler */}
-            <div className="flex justify-between w-full max-w-lg mb-2 px-2">
-                <span className="text-sm md:text-base font-bold text-purple-300 bg-purple-900/40 px-3 py-1.5 rounded-xl">
+            <div className="flex justify-between w-full max-w-lg mb-3 px-2">
+                <span className="text-sm md:text-base font-bold text-slate-200 bg-slate-700/60 px-4 py-2 rounded-xl">
                     {leftLabel}
                 </span>
-                <span className="text-sm md:text-base font-bold text-amber-300 bg-amber-900/40 px-3 py-1.5 rounded-xl">
+                <span className="text-sm md:text-base font-bold text-slate-200 bg-slate-700/60 px-4 py-2 rounded-xl">
                     {rightLabel}
                 </span>
             </div>
@@ -147,119 +147,140 @@ export default function WavelengthDial({
                 style={{ touchAction: 'none' }}
             >
                 <defs>
-                    <filter id="glow">
-                        <feGaussianBlur stdDeviation="4" result="coloredBlur" />
-                        <feMerge>
-                            <feMergeNode in="coloredBlur" />
-                            <feMergeNode in="SourceGraphic" />
-                        </feMerge>
+                    <filter id="needle-shadow">
+                        <feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#000" floodOpacity="0.4" />
                     </filter>
-                    <filter id="shadow">
-                        <feDropShadow dx="0" dy="2" stdDeviation="3" floodColor="#000" floodOpacity="0.5" />
-                    </filter>
-                    <linearGradient id="spectrumGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#a855f7" />
-                        <stop offset="25%" stopColor="#3b82f6" />
-                        <stop offset="50%" stopColor="#22c55e" />
-                        <stop offset="75%" stopColor="#eab308" />
-                        <stop offset="100%" stopColor="#ef4444" />
-                    </linearGradient>
                 </defs>
 
-                {/* Arka Plan Yay – Spektrum Renkleri */}
-                {Array.from({ length: spectrumSegments }).map((_, i) => {
-                    const startA = i * segmentAngle
-                    const endA = (i + 1) * segmentAngle
-                    const hue = (i / spectrumSegments) * 300
+                {/* Ana yarım daire – sade krem/beyaz arka plan */}
+                <path
+                    d={createArcPath(0, 180, 0, 200)}
+                    fill="#f5f0e8"
+                    stroke="#2a2a4a"
+                    strokeWidth="2"
+                />
+
+                {/* İç daire (koyu alan) */}
+                <path
+                    d={createArcPath(0, 180, 0, 60)}
+                    fill="#1a1a2e"
+                    stroke="none"
+                />
+
+                {/* Dilim çizgileri (derecelendirme) */}
+                {Array.from({ length: 19 }).map((_, i) => {
+                    const angle = i * 10
+                    const inner = angleToPosition(angle, 60)
+                    const outer = angleToPosition(angle, 200)
                     return (
-                        <path
-                            key={`seg-${i}`}
-                            d={createArcPath(startA, endA, 80, 200)}
-                            fill={`hsl(${hue}, 70%, 45%)`}
-                            opacity={0.6}
-                            stroke="rgba(10,10,26,0.4)"
-                            strokeWidth="0.5"
+                        <line
+                            key={`tick-${i}`}
+                            x1={inner.x}
+                            y1={inner.y}
+                            x2={outer.x}
+                            y2={outer.y}
+                            stroke="#c4b99a"
+                            strokeWidth="0.8"
+                            opacity="0.5"
                         />
                     )
                 })}
 
-                {/* Hedef Bölgesi - Sadece reveal aşamasında veya showTarget */}
+                {/* Hedef Bölgesi - Sadece reveal aşamasında veya medyum gösterimi */}
                 {showTarget && targetZones.map((zone, idx) => {
                     const startA = Math.max(0, targetAngle - zone.delta)
                     const endA = Math.min(180, targetAngle + zone.delta)
                     return (
                         <path
                             key={`zone-${idx}`}
-                            d={createArcPath(startA, endA, 80, 200)}
+                            d={createArcPath(startA, endA, 60, 200)}
                             fill={zone.color}
-                            stroke="rgba(34,197,94,0.3)"
-                            strokeWidth="1"
+                            stroke="#8a7b5a"
+                            strokeWidth="0.5"
+                            opacity="0.85"
                         />
                     )
                 })}
 
-                {/* Hedef merkez çizgisi - sadece reveal'da */}
+                {/* Hedef bölge puan etiketleri */}
+                {showTarget && targetZones.map((zone, idx) => {
+                    const pos = getZoneLabelPos(targetAngle, zone.delta, idx === 0 ? 140 : idx === 1 ? 140 : 140)
+                    return (
+                        <g key={`label-${idx}`}>
+                            {/* Sol taraf puan */}
+                            <text
+                                x={pos.left.x}
+                                y={pos.left.y}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                fill="#1a1a2e"
+                                fontSize="16"
+                                fontWeight="bold"
+                            >
+                                {zone.label}
+                            </text>
+                            {/* Sağ taraf puan */}
+                            <text
+                                x={pos.right.x}
+                                y={pos.right.y}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                fill="#1a1a2e"
+                                fontSize="16"
+                                fontWeight="bold"
+                            >
+                                {zone.label}
+                            </text>
+                        </g>
+                    )
+                })}
+
+                {/* Hedef merkez çizgisi */}
                 {showTarget && (() => {
-                    const tp = angleToPosition(targetAngle)
+                    const tp = angleToPosition(targetAngle, 200)
+                    const ti = angleToPosition(targetAngle, 60)
                     return (
                         <line
-                            x1="250"
-                            y1="250"
+                            x1={ti.x}
+                            y1={ti.y}
                             x2={tp.x}
                             y2={tp.y}
-                            stroke="#22c55e"
-                            strokeWidth="3"
-                            strokeDasharray="6 4"
-                            opacity="0.8"
-                            filter="url(#glow)"
+                            stroke="#1a1a2e"
+                            strokeWidth="2.5"
+                            opacity="0.7"
                         />
                     )
                 })()}
 
-                {/* Dış çerçeve */}
-                <path
-                    d={createArcPath(0, 180, 198, 202)}
-                    fill="none"
-                    stroke="rgba(124,58,237,0.4)"
-                    strokeWidth="2"
-                />
-                <path
-                    d={createArcPath(0, 180, 78, 82)}
-                    fill="none"
-                    stroke="rgba(124,58,237,0.2)"
-                    strokeWidth="1"
-                />
-
                 {/* Merkez nokta */}
-                <circle cx="250" cy="250" r="12" fill="#1a1a3e" stroke="#7c3aed" strokeWidth="3" />
-                <circle cx="250" cy="250" r="6" fill="#7c3aed" />
+                <circle cx="250" cy="250" r="10" fill="#1a1a2e" stroke="#3a3a5e" strokeWidth="2" />
 
-                {/* İbre */}
+                {/* İbre çizgisi */}
                 <line
                     x1="250"
                     y1="250"
                     x2={needleEnd.x}
                     y2={needleEnd.y}
-                    stroke="white"
+                    stroke="#1a1a2e"
                     strokeWidth="4"
                     strokeLinecap="round"
-                    filter="url(#shadow)"
+                    filter="url(#needle-shadow)"
                     style={{ transition: isDragging.current ? 'none' : 'all 0.15s ease-out' }}
                 />
-                {/* İbre ucu */}
+                {/* İbre ucu dairesi */}
                 <circle
                     cx={needleEnd.x}
                     cy={needleEnd.y}
-                    r="10"
+                    r="9"
                     fill="white"
-                    stroke="#7c3aed"
+                    stroke="#1a1a2e"
                     strokeWidth="3"
-                    filter="url(#glow)"
+                    filter="url(#needle-shadow)"
                     style={{ transition: isDragging.current ? 'none' : 'all 0.15s ease-out' }}
                 />
 
                 {/* Alt düz çizgi */}
-                <line x1="40" y1="252" x2="460" y2="252" stroke="rgba(124,58,237,0.3)" strokeWidth="2" />
+                <line x1="45" y1="252" x2="455" y2="252" stroke="#3a3a5e" strokeWidth="2" />
             </svg>
         </div>
     )

@@ -24,9 +24,11 @@ export default function GameRoom({ network, playerName }) {
 
     const usedCardsRef = useRef(new Set())
     const throttleRef = useRef(null)
+    // Medyum sırası: tek turlar host, çift turlar misafir
+    const psychicTurnRef = useRef(0)
 
     // Yeni raunt başlat
-    const startNewRound = useCallback((asPsychic = false) => {
+    const startNewRound = useCallback((roundNum) => {
         // Rastgele kart seç (daha önce kullanılmamış)
         let availableCards = CARDS.filter((_, i) => !usedCardsRef.current.has(i))
         if (availableCards.length === 0) {
@@ -40,14 +42,19 @@ export default function GameRoom({ network, playerName }) {
         const newCard = CARDS[cardIdx]
         const newTarget = Math.floor(Math.random() * 160) + 10 // 10-170 arası
 
+        // Çift/tek tur mantığı: Host tek turda medyum, çift turda misafir medyum
+        const hostIsPsychic = (psychicTurnRef.current % 2 === 0)
+        psychicTurnRef.current += 1
+
         setCard(newCard)
         setTargetAngle(newTarget)
         setDialAngle(90)
         setClue('')
         setClueInput('')
         setPhase('clue')
-        setIsPsychic(asPsychic)
+        setIsPsychic(hostIsPsychic) // Host kendi durumunu ayarlar
         setRoundScore(0)
+        setRoundNumber(roundNum)
         setShowScoreAnim(false)
 
         // Host ise diğerlerine yeni round bilgisi gönder
@@ -56,16 +63,16 @@ export default function GameRoom({ network, playerName }) {
                 type: 'new-round',
                 card: newCard,
                 targetAngle: newTarget,
-                roundNumber: roundNumber,
-                psychicName: asPsychic ? playerName : null,
+                roundNumber: roundNum,
+                hostIsPsychic: hostIsPsychic,
             })
         }
-    }, [network, playerName, roundNumber])
+    }, [network])
 
     // İlk açıldığında host ise round başlat
     useEffect(() => {
         if (network.isHost) {
-            startNewRound(true)
+            startNewRound(1)
         }
     }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -80,7 +87,8 @@ export default function GameRoom({ network, playerName }) {
                     setClue('')
                     setClueInput('')
                     setPhase('clue')
-                    setIsPsychic(false) // Gelen kişi medyum değil
+                    // Host medyumsa, misafir medyum DEĞİLDİR (ve tam tersi)
+                    setIsPsychic(!data.hostIsPsychic)
                     setRoundScore(0)
                     setRoundNumber(data.roundNumber)
                     setShowScoreAnim(false)
@@ -97,9 +105,6 @@ export default function GameRoom({ network, playerName }) {
 
                 case 'reveal':
                     setPhase('reveal')
-                    break
-
-                case 'score-update':
                     setRoundScore(data.roundScore)
                     setScore(prev => prev + data.roundScore)
                     setShowScoreAnim(true)
@@ -114,8 +119,11 @@ export default function GameRoom({ network, playerName }) {
                 case 'next-round-request':
                     // Host yeni round başlatır
                     if (network.isHost) {
-                        setRoundNumber(prev => prev + 1)
-                        startNewRound(false) // Sonraki kişi medyum olacak
+                        setRoundNumber(prev => {
+                            const nextRound = prev + 1
+                            startNewRound(nextRound)
+                            return nextRound
+                        })
                     }
                     break
 
@@ -146,9 +154,6 @@ export default function GameRoom({ network, playerName }) {
 
     // Sonucu göster (reveal)
     const handleReveal = () => {
-        setPhase('reveal')
-        network.broadcast({ type: 'reveal' })
-
         // Puan hesapla
         const diff = Math.abs(dialAngle - targetAngle)
         let pts = 0
@@ -157,18 +162,22 @@ export default function GameRoom({ network, playerName }) {
         else if (diff <= 24) pts = 2
         else pts = 0
 
+        setPhase('reveal')
         setRoundScore(pts)
         setScore(prev => prev + pts)
         setShowScoreAnim(true)
 
-        network.broadcast({ type: 'score-update', roundScore: pts })
+        network.broadcast({ type: 'reveal', roundScore: pts })
     }
 
     // Sonraki round
     const handleNextRound = () => {
         if (network.isHost) {
-            setRoundNumber(prev => prev + 1)
-            startNewRound(false) // Sıradaki kişi medyum
+            setRoundNumber(prev => {
+                const nextRound = prev + 1
+                startNewRound(nextRound)
+                return nextRound
+            })
         } else {
             network.broadcast({ type: 'next-round-request' })
         }
@@ -245,7 +254,7 @@ export default function GameRoom({ network, playerName }) {
                 </motion.div>
             </AnimatePresence>
 
-            {/* İpucu Alanı */}
+            {/* İpucu Alanı - Medyum yazıyor */}
             {phase === 'clue' && isPsychic && (
                 <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
@@ -368,9 +377,9 @@ export default function GameRoom({ network, playerName }) {
                             >
                                 <motion.div
                                     className={`text-6xl font-black mb-2 ${roundScore === 4 ? 'text-green-400' :
-                                            roundScore === 3 ? 'text-emerald-400' :
-                                                roundScore === 2 ? 'text-amber-400' :
-                                                    'text-red-400'
+                                        roundScore === 3 ? 'text-emerald-400' :
+                                            roundScore === 2 ? 'text-amber-400' :
+                                                'text-red-400'
                                         }`}
                                     animate={{ scale: [1, 1.2, 1] }}
                                     transition={{ duration: 0.5 }}
