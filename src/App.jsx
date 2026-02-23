@@ -7,10 +7,17 @@ export default function App() {
     const network = useNetwork()
     const [gameStarted, setGameStarted] = useState(false)
     const [playerName, setPlayerName] = useState('')
+    const [playerAvatar, setPlayerAvatar] = useState('🐱')
 
-    const handleGameStart = (name) => {
+    const handleGameStart = (name, avatar) => {
         setPlayerName(name)
+        setPlayerAvatar(avatar)
         setGameStarted(true)
+    }
+
+    const handleBackToLobby = () => {
+        setGameStarted(false)
+        network.cleanupPeer()
     }
 
     return (
@@ -18,7 +25,12 @@ export default function App() {
             {!gameStarted ? (
                 <Lobby network={network} onGameStart={handleGameStart} />
             ) : (
-                <GameRoom network={network} playerName={playerName} />
+                <GameRoom
+                    network={network}
+                    playerName={playerName}
+                    playerAvatar={playerAvatar}
+                    onBackToLobby={handleBackToLobby}
+                />
             )}
         </div>
     )

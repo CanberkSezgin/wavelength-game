@@ -10,10 +10,12 @@ export function useNetwork() {
     const [isConnected, setIsConnected] = useState(false)
     const [playerCount, setPlayerCount] = useState(0)
     const [error, setError] = useState(null)
+    const [players, setPlayers] = useState([]) // { id, name, avatar, isHost }
 
     const peerRef = useRef(null)
     const connectionsRef = useRef([])
     const onMessageRef = useRef(null)
+    const playersRef = useRef([])
 
     const generateRoomCode = () => {
         const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -23,6 +25,11 @@ export function useNetwork() {
         }
         return code
     }
+
+    const updatePlayers = useCallback((newPlayers) => {
+        playersRef.current = newPlayers
+        setPlayers([...newPlayers])
+    }, [])
 
     const cleanupPeer = useCallback(() => {
         connectionsRef.current.forEach(conn => {
@@ -37,7 +44,8 @@ export function useNetwork() {
         setPeerId(null)
         setIsConnected(false)
         setPlayerCount(0)
-    }, [])
+        updatePlayers([])
+    }, [updatePlayers])
 
     const setupConnectionListeners = useCallback((conn) => {
         conn.on('data', (data) => {
@@ -58,23 +66,24 @@ export function useNetwork() {
             connectionsRef.current = connectionsRef.current.filter(c => c !== conn)
             setConnections([...connectionsRef.current])
             setPlayerCount(connectionsRef.current.length + 1)
+            // Ayrılan oyuncuyu listeden çıkar
+            const updated = playersRef.current.filter(p => p.connId !== conn.peer)
+            updatePlayers(updated)
         })
 
         conn.on('error', (err) => {
             console.error('Bağlantı hatası:', err)
         })
-    }, [])
+    }, [updatePlayers])
 
     // Oda kurma (Host modu)
-    const hostGame = useCallback(() => {
+    const hostGame = useCallback((playerName, playerAvatar) => {
         return new Promise((resolve, reject) => {
             cleanupPeer()
             const code = generateRoomCode()
             const peerIdStr = `wavelength-${code}`
 
-            const peer = new Peer(peerIdStr, {
-                debug: 0,
-            })
+            const peer = new Peer(peerIdStr, { debug: 0 })
 
             peer.on('open', (id) => {
                 setPeerId(id)
@@ -83,6 +92,10 @@ export function useNetwork() {
                 setIsConnected(true)
                 setPlayerCount(1)
                 peerRef.current = peer
+
+                // Host kendini oyuncu listesine ekle
+                updatePlayers([{ id: id, name: playerName, avatar: playerAvatar, isHost: true, connId: null }])
+
                 resolve(code)
             })
 
@@ -109,18 +122,16 @@ export function useNetwork() {
                 try { peer.reconnect() } catch (e) { /* ignore */ }
             })
         })
-    }, [cleanupPeer, setupConnectionListeners])
+    }, [cleanupPeer, setupConnectionListeners, updatePlayers])
 
     // Odaya katılma (Client modu)
-    const joinGame = useCallback((code) => {
+    const joinGame = useCallback((code, playerName, playerAvatar) => {
         return new Promise((resolve, reject) => {
             cleanupPeer()
             const hostPeerId = `wavelength-${code.toUpperCase()}`
             const myId = `wavelength-${code.toUpperCase()}-${Date.now()}`
 
-            const peer = new Peer(myId, {
-                debug: 0,
-            })
+            const peer = new Peer(myId, { debug: 0 })
 
             peer.on('open', () => {
                 peerRef.current = peer
@@ -152,7 +163,6 @@ export function useNetwork() {
                 reject(err)
             })
 
-            // 10 saniye içinde bağlanamazsa timeout
             setTimeout(() => {
                 if (!connectionsRef.current.length) {
                     setError('Bağlantı zaman aşımına uğradı. Oda kodu doğru mu?')
@@ -196,5 +206,8 @@ export function useNetwork() {
         broadcast,
         onMessage,
         cleanupPeer,
+        players,
+        updatePlayers,
+        playersRef,
     }
 }

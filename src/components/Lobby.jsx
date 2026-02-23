@@ -1,19 +1,25 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Wifi, Users, ArrowRight, Copy, Check, Radio } from 'lucide-react'
+import AVATARS from '../data/avatars'
+import { applyNameTrick } from '../utils/nameTricks'
 
 export default function Lobby({ network, onGameStart }) {
     const [joinCode, setJoinCode] = useState('')
     const [playerName, setPlayerName] = useState('')
+    const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0])
     const [mode, setMode] = useState(null) // null, 'host', 'join'
     const [loading, setLoading] = useState(false)
     const [copied, setCopied] = useState(false)
+
+    const getDisplayName = (name) => applyNameTrick(name.trim())
 
     const handleHost = async () => {
         if (!playerName.trim()) return
         setLoading(true)
         try {
-            await network.hostGame()
+            const displayName = getDisplayName(playerName)
+            await network.hostGame(displayName, selectedAvatar)
             setMode('host')
         } catch (e) {
             console.error(e)
@@ -25,11 +31,16 @@ export default function Lobby({ network, onGameStart }) {
         if (!playerName.trim() || !joinCode.trim()) return
         setLoading(true)
         try {
-            await network.joinGame(joinCode.trim())
+            const displayName = getDisplayName(playerName)
+            await network.joinGame(joinCode.trim(), displayName, selectedAvatar)
             // Katıldığımızı host'a bildir
             setTimeout(() => {
-                network.broadcast({ type: 'player-joined', name: playerName.trim() })
-                onGameStart(playerName.trim())
+                network.broadcast({
+                    type: 'player-joined',
+                    name: displayName,
+                    avatar: selectedAvatar,
+                })
+                onGameStart(displayName, selectedAvatar)
             }, 500)
         } catch (e) {
             console.error(e)
@@ -44,8 +55,9 @@ export default function Lobby({ network, onGameStart }) {
     }
 
     const handleStartGame = () => {
+        const displayName = getDisplayName(playerName)
         network.broadcast({ type: 'game-start' })
-        onGameStart(playerName.trim())
+        onGameStart(displayName, selectedAvatar)
     }
 
     return (
@@ -55,7 +67,7 @@ export default function Lobby({ network, onGameStart }) {
                 initial={{ opacity: 0, y: -30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.8, ease: 'easeOut' }}
-                className="text-center mb-10"
+                className="text-center mb-8"
             >
                 <div className="flex items-center justify-center gap-3 mb-4">
                     <Radio className="w-10 h-10 text-purple-400 animate-float" />
@@ -72,7 +84,7 @@ export default function Lobby({ network, onGameStart }) {
             </motion.div>
 
             <AnimatePresence mode="wait">
-                {/* İsim Girişi ve Mod Seçimi */}
+                {/* İsim + Avatar Girişi ve Mod Seçimi */}
                 {!mode && (
                     <motion.div
                         key="start"
@@ -82,7 +94,8 @@ export default function Lobby({ network, onGameStart }) {
                         transition={{ duration: 0.4 }}
                         className="glass-strong rounded-3xl p-8 max-w-md w-full"
                     >
-                        <div className="mb-6">
+                        {/* İsim */}
+                        <div className="mb-5">
                             <label className="text-text-secondary text-sm font-medium mb-2 block">
                                 İsmin
                             </label>
@@ -94,6 +107,27 @@ export default function Lobby({ network, onGameStart }) {
                                 className="input-field text-center text-lg"
                                 maxLength={20}
                             />
+                        </div>
+
+                        {/* Avatar Seçimi */}
+                        <div className="mb-5">
+                            <label className="text-text-secondary text-sm font-medium mb-2 block">
+                                Avatarını Seç
+                            </label>
+                            <div className="grid grid-cols-8 gap-2">
+                                {AVATARS.map((av) => (
+                                    <button
+                                        key={av}
+                                        onClick={() => setSelectedAvatar(av)}
+                                        className={`text-2xl p-1.5 rounded-xl transition-all duration-200 ${selectedAvatar === av
+                                                ? 'bg-purple-600/50 ring-2 ring-purple-400 scale-110'
+                                                : 'bg-bg-card hover:bg-bg-card-hover'
+                                            }`}
+                                    >
+                                        {av}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
                         <div className="space-y-3">
@@ -177,10 +211,30 @@ export default function Lobby({ network, onGameStart }) {
                             </p>
                         </div>
 
-                        <div className="flex items-center justify-center gap-2 text-text-secondary mb-6">
-                            <Users className="w-5 h-5" />
-                            <span className="font-semibold text-lg">{network.playerCount}</span>
-                            <span className="text-sm">oyuncu bağlı</span>
+                        {/* Oyuncu Listesi */}
+                        <div className="mb-6">
+                            <div className="flex items-center justify-center gap-2 text-text-secondary mb-3">
+                                <Users className="w-5 h-5" />
+                                <span className="font-semibold text-lg">{network.playerCount}</span>
+                                <span className="text-sm">oyuncu bağlı</span>
+                            </div>
+
+                            <div className="flex flex-wrap justify-center gap-3">
+                                {network.players.map((p, i) => (
+                                    <div
+                                        key={i}
+                                        className="glass px-3 py-2 rounded-xl flex items-center gap-2"
+                                    >
+                                        <span className="text-xl">{p.avatar}</span>
+                                        <span className="text-sm font-medium">{p.name}</span>
+                                        {p.isHost && (
+                                            <span className="text-xs bg-purple-600/40 px-1.5 py-0.5 rounded-md text-purple-300">
+                                                Host
+                                            </span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
 
                         {/* Bağlanan oyuncular beklenirken animasyonlu nokta */}
