@@ -84,10 +84,30 @@ export default function GameRoom({ network, playerName, playerAvatar, playerColo
 
     const pickUniqueCard = useCallback(() => {
         const pool = allCardsPool.current
-        let available = pool.filter((_, i) => !usedCardsRef.current.has(i))
-        if (available.length === 0) { usedCardsRef.current.clear(); available = pool }
-        const rIdx = Math.floor(Math.random() * available.length)
-        const cardIdx = pool.indexOf(available[rIdx])
+        const customCount = pool.length - CARDS.length
+
+        // Önce kullanılmamış özel kart var mı kontrol et
+        let availableCustom = []
+        if (customCount > 0) {
+            for (let i = CARDS.length; i < pool.length; i++) {
+                if (!usedCardsRef.current.has(i)) availableCustom.push(i)
+            }
+        }
+
+        let cardIdx;
+        if (availableCustom.length > 0) {
+            // Varsa kesinlikle bir özel kart seç (önceliklendir)
+            cardIdx = availableCustom[Math.floor(Math.random() * availableCustom.length)]
+        } else {
+            // Yoksa normal havuzdan kullanılmamış olanları bul
+            let available = pool.map((_, i) => i).filter(i => !usedCardsRef.current.has(i))
+            if (available.length === 0) {
+                usedCardsRef.current.clear()
+                available = pool.map((_, i) => i)
+            }
+            cardIdx = available[Math.floor(Math.random() * available.length)]
+        }
+
         usedCardsRef.current.add(cardIdx)
         return { card: pool[cardIdx], cardIdx }
     }, [])
