@@ -53,8 +53,8 @@ export default function GameRoom({ network, playerName, playerAvatar, playerColo
     const [setupSubmitted, setSetupSubmitted] = useState(false)
     const [playersReady, setPlayersReady] = useState(new Set())
 
-    // Timer (45 saniye)
-    const [timeLeft, setTimeLeft] = useState(45)
+    // Timer (4 dakika = 240 saniye)
+    const [timeLeft, setTimeLeft] = useState(240)
 
     // Jokerler
     const [myJokers, setMyJokers] = useState({ narrow: true, doublePts: true, extraWord: true })
@@ -96,10 +96,10 @@ export default function GameRoom({ network, playerName, playerAvatar, playerColo
     useEffect(() => {
         if (timerRef.current) clearInterval(timerRef.current)
         if ((phase === 'guess') || (phase === 'setup' && !setupSubmitted)) {
-            setTimeLeft(45)
+            setTimeLeft(240)
             timerRef.current = setInterval(() => setTimeLeft(prev => {
                 if (prev <= 1) { clearInterval(timerRef.current); return 0 }
-                if (prev <= 11) playTimerWarn()
+                if (prev <= 31) playTimerWarn()
                 return prev - 1
             }), 1000)
         }
@@ -344,10 +344,10 @@ export default function GameRoom({ network, playerName, playerAvatar, playerColo
             <div className="w-full max-w-lg mb-3 h-1.5 rounded-full bg-bg-card overflow-hidden">
                 <motion.div
                     className={`h-full rounded-full ${timeLeft <= 10 ? 'bg-red-500 timer-urgent' : 'bg-purple-500'}`}
-                    style={{ width: `${(timeLeft / 45) * 100}%` }}
+                    style={{ width: `${(timeLeft / 240) * 100}%` }}
                     transition={{ duration: 0.3 }}
                 />
-                {timeLeft <= 10 && <span className="text-red-400 text-xs font-bold block text-center mt-1">{timeLeft}s</span>}
+                {timeLeft <= 30 && <span className="text-red-400 text-xs font-bold block text-center mt-1">{Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}</span>}
             </div>
         ) : null
     )

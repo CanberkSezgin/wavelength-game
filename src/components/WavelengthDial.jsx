@@ -95,16 +95,6 @@ export default function WavelengthDial({
 
     const needleEnd = angleToPosition(localAngle, 200)
 
-    // Dinamik glow — hedef yakınlığına göre (sadece tahmin modunda)
-    const distance = Math.abs(localAngle - targetAngle)
-    const warmth = (!showTarget && !disabled) ? Math.max(0, 1 - distance / 60) : 0
-    const glowColor = warmth > 0.3
-        ? `rgba(251, 191, 36, ${warmth * 0.4})`
-        : 'none'
-    const needleTipColor = warmth > 0.3
-        ? `hsl(${45 - warmth * 20}, ${warmth * 80 + 20}%, ${100 - warmth * 30}%)`
-        : 'white'
-
     const zones = [
         { delta: 24, color: '#F5C842', label: '2' },
         { delta: 16, color: '#E8882D', label: '3' },
@@ -131,12 +121,6 @@ export default function WavelengthDial({
                 onMouseDown={handlePointerDown} onTouchStart={handlePointerDown} style={{ touchAction: 'none' }}>
                 <defs>
                     <filter id="needle-shadow"><feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#000" floodOpacity="0.5" /></filter>
-                    {warmth > 0.3 && (
-                        <filter id="warm-glow">
-                            <feGaussianBlur stdDeviation="4" result="blur" />
-                            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-                        </filter>
-                    )}
                 </defs>
 
                 {/* Krem arka plan */}

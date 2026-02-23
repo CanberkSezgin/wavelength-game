@@ -79,6 +79,7 @@ export default function Lobby({ network, onGameStart }) {
 
     const handleAddCustomCard = () => {
         if (!newCardLeft.trim() || !newCardRight.trim()) return
+        if (customCards.length >= 1) return // Sadece 1 özel kart
         const card = { left: newCardLeft.trim(), right: newCardRight.trim() }
         setCustomCards(prev => [...prev, card])
         network.broadcast({ type: 'custom-card-add', card })
@@ -189,26 +190,26 @@ export default function Lobby({ network, onGameStart }) {
                             </div>
                         </div>
 
-                        {/* Özel kart ekleme */}
+                        {/* Özel kart ekleme — max 1 */}
                         <div className="glass rounded-2xl p-4 mb-4 text-left">
-                            <p className="text-text-secondary text-xs font-semibold mb-2">✏️ Özel Kart Ekle</p>
-                            <div className="flex gap-2 mb-2">
-                                <input type="text" value={newCardLeft} onChange={e => setNewCardLeft(e.target.value)} placeholder="Sol (min)" className="input-field text-xs !py-2 !px-2" maxLength={30} />
-                                <input type="text" value={newCardRight} onChange={e => setNewCardRight(e.target.value)} placeholder="Sağ (max)" className="input-field text-xs !py-2 !px-2" maxLength={30} />
-                                <button onClick={handleAddCustomCard} disabled={!newCardLeft.trim() || !newCardRight.trim()} className="bg-purple-600 hover:bg-purple-500 text-white rounded-xl px-3 disabled:opacity-30 transition-colors">
-                                    <Plus className="w-4 h-4" />
-                                </button>
-                            </div>
-                            {customCards.length > 0 && (
-                                <div className="space-y-1 max-h-24 overflow-y-auto">
-                                    {customCards.map((c, i) => (
-                                        <div key={i} className="flex items-center justify-between bg-bg-card rounded-lg px-2 py-1 text-xs">
-                                            <span className="text-blue-300">{c.left}</span>
-                                            <span className="text-text-muted">↔</span>
-                                            <span className="text-amber-300">{c.right}</span>
-                                            <button onClick={() => handleRemoveCustomCard(i)} className="text-text-muted hover:text-red-400 ml-1"><X className="w-3 h-3" /></button>
-                                        </div>
-                                    ))}
+                            <p className="text-text-secondary text-xs font-semibold mb-2">✏️ Özel Kart Ekle (1 Hak)</p>
+                            {customCards.length === 0 ? (
+                                <div className="flex gap-2">
+                                    <input type="text" value={newCardLeft} onChange={e => setNewCardLeft(e.target.value)} placeholder="Sol (min)" className="input-field text-xs !py-2 !px-2" maxLength={30} />
+                                    <input type="text" value={newCardRight} onChange={e => setNewCardRight(e.target.value)} placeholder="Sağ (max)" className="input-field text-xs !py-2 !px-2" maxLength={30} />
+                                    <button onClick={handleAddCustomCard} disabled={!newCardLeft.trim() || !newCardRight.trim()} className="bg-purple-600 hover:bg-purple-500 text-white rounded-xl px-3 disabled:opacity-30 transition-colors">
+                                        <Plus className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ) : (
+                                <div>
+                                    <div className="flex items-center justify-between bg-bg-card rounded-lg px-2 py-1 text-xs mb-1">
+                                        <span className="text-blue-300">{customCards[0].left}</span>
+                                        <span className="text-text-muted">↔</span>
+                                        <span className="text-amber-300">{customCards[0].right}</span>
+                                        <button onClick={() => handleRemoveCustomCard(0)} className="text-text-muted hover:text-red-400 ml-1"><X className="w-3 h-3" /></button>
+                                    </div>
+                                    <p className="text-text-muted text-[10px]">✅ Özel kart eklendi</p>
                                 </div>
                             )}
                         </div>
