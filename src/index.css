@@ -35,6 +35,17 @@ body,
   overflow-x: hidden;
 }
 
+.bg-lobby-pattern {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  background-image: url('/bg-lobby.jpg');
+  background-size: 5vw 5vw;
+  background-repeat: repeat;
+  opacity: 0.12;
+  pointer-events: none;
+}
+
 body {
   background: linear-gradient(135deg, var(--color-bg-primary) 0%, #0d0d2b 50%, #0a0a1a 100%);
 }

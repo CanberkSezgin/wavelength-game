@@ -358,16 +358,29 @@ export default function GameRoom({ network, playerName, playerAvatar, playerColo
         setExtraWordInput('')
     }
 
-    // Timer bar bileşeni
+    // Timer bar bileşeni — belirgin ve görünür
     const TimerBar = () => (
         (phase === 'guess' || (phase === 'setup' && !setupSubmitted)) ? (
-            <div className="w-full max-w-lg mb-3 h-1.5 rounded-full bg-bg-card overflow-hidden">
-                <motion.div
-                    className={`h-full rounded-full ${timeLeft <= 10 ? 'bg-red-500 timer-urgent' : 'bg-purple-500'}`}
-                    style={{ width: `${(timeLeft / 240) * 100}%` }}
-                    transition={{ duration: 0.3 }}
-                />
-                {timeLeft <= 30 && <span className="text-red-400 text-xs font-bold block text-center mt-1">{Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}</span>}
+            <div className="w-full max-w-lg mb-3">
+                <div className="flex items-center gap-3">
+                    <div className={`glass px-4 py-2 rounded-xl flex items-center gap-2 ${timeLeft <= 30 ? 'border-red-500/50' : ''}`}>
+                        <span className="text-lg">⏱️</span>
+                        <motion.span
+                            className={`text-xl font-black tabular-nums tracking-wider ${timeLeft <= 30 ? 'text-red-400' : timeLeft <= 60 ? 'text-amber-400' : 'text-purple-300'}`}
+                            animate={timeLeft <= 30 ? { scale: [1, 1.1, 1] } : {}}
+                            transition={{ duration: 0.5, repeat: Infinity }}
+                        >
+                            {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, '0')}
+                        </motion.span>
+                    </div>
+                    <div className="flex-1 h-2 rounded-full bg-bg-card overflow-hidden">
+                        <motion.div
+                            className={`h-full rounded-full ${timeLeft <= 30 ? 'bg-red-500 timer-urgent' : timeLeft <= 60 ? 'bg-amber-500' : 'bg-purple-500'}`}
+                            style={{ width: `${(timeLeft / 240) * 100}%` }}
+                            transition={{ duration: 0.3 }}
+                        />
+                    </div>
+                </div>
             </div>
         ) : null
     )

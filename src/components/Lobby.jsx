@@ -98,8 +98,11 @@ export default function Lobby({ network, onGameStart }) {
     }
 
     return (
-        <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8">
-            <motion.div initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="text-center mb-8">
+        <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 relative">
+            {/* Arkaplan deseni — sadece giriş ekranı */}
+            <div className="bg-lobby-pattern" />
+
+            <motion.div initial={{ opacity: 0, y: -30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8 }} className="text-center mb-8 relative z-10">
                 <div className="flex items-center justify-center gap-3 mb-4">
                     <Radio className="w-10 h-10 text-purple-400 animate-float" />
                     <h1 className="text-5xl md:text-7xl font-black tracking-tight">
@@ -111,6 +114,7 @@ export default function Lobby({ network, onGameStart }) {
             </motion.div>
 
             <AnimatePresence mode="wait">
+
                 {!mode && (
                     <motion.div key="start" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="glass-strong rounded-3xl p-8 max-w-md w-full">
                         <div className="mb-5">
@@ -237,7 +241,7 @@ export default function Lobby({ network, onGameStart }) {
                 )}
             </AnimatePresence>
 
-            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }} className="text-text-muted text-xs mt-8 text-center">
+            <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 1 }} className="text-text-muted text-xs mt-8 text-center relative z-10">
                 Peer-to-Peer bağlantı ile sunucusuz oynayın
             </motion.p>
         </div>
