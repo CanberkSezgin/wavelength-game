@@ -1,7 +1,7 @@
 import { useRef, useCallback, useEffect, useState } from 'react'
 
-// Wavelength kadranı: Referans görsele uygun sade tasarım
-// Koyu arka plan, beyaz/krem yarım daire, renkli dilimler (4-3-2 puan bölgeleri)
+// Wavelength kadranı — Referans görsele uygun:
+// Krem arka planlı yarım daire, üçgen dilimler (4=mavi, 3=turuncu, 2=sarı)
 
 export default function WavelengthDial({
     targetAngle = 90,
@@ -11,7 +11,6 @@ export default function WavelengthDial({
     disabled = false,
     leftLabel = "Sol",
     rightLabel = "Sağ",
-    phase = "guess",
     moverInfo = null,
 }) {
     const svgRef = useRef(null)
@@ -47,7 +46,7 @@ export default function WavelengthDial({
             clientY = e.clientY
         }
 
-        // FIX: dx yönü düzeltildi (sağa = sağa, sola = sola)
+        // Yön düzeltmesi: sağa = sağa, sola = sola
         const dx = cx - clientX
         const dy = cy - clientY
         let angle = Math.atan2(dy, dx) * (180 / Math.PI)
@@ -91,7 +90,24 @@ export default function WavelengthDial({
         }
     }, [handlePointerMove, handlePointerUp])
 
-    // Arc path oluşturucu
+    // Üçgen dilim oluşturucu (merkezden dışa doğru üçgen)
+    const createTrianglePath = (centerAngle, halfSpread, radius) => {
+        const cx = 250, cy = 250
+        const toRad = (a) => (a * Math.PI) / 180
+        const startA = centerAngle - halfSpread
+        const endA = centerAngle + halfSpread
+
+        const x1 = cx - radius * Math.cos(toRad(startA))
+        const y1 = cy - radius * Math.sin(toRad(startA))
+        const x2 = cx - radius * Math.cos(toRad(endA))
+        const y2 = cy - radius * Math.sin(toRad(endA))
+
+        // Üçgen: merkez noktası → dış kenar yayı → geri merkez
+        const largeArc = (endA - startA) > 180 ? 1 : 0
+        return `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 ${largeArc} 0 ${x2} ${y2} Z`
+    }
+
+    // Arc path oluşturucu (yarım daire arka plan için)
     const createArcPath = (startAngle, endAngle, innerR, outerR) => {
         const cx = 250, cy = 250
         const toRad = (a) => (a * Math.PI) / 180
@@ -108,14 +124,14 @@ export default function WavelengthDial({
     }
 
     // İbre ucu konumu
-    const needleEnd = angleToPosition(localAngle, 195)
+    const needleEnd = angleToPosition(localAngle, 200)
 
-    // Hedef bölge dilimleri — referans görseldeki gibi ayrı renkli dilimler
-    // Merkez: 4 puan (turuncu/altın), Orta: 3 puan (koyu turuncu), Dış: 2 puan (kahverengi)
+    // Hedef üçgen dilimleri — referansa uygun: 4=mavi, 3=turuncu, 2=sarı
+    // Dıştan içe sıralı render (2 en dış, 4 en iç)
     const zones = [
-        { delta: 24, innerDelta: 16, color: '#8B6914', label: '2' }, // Dış halka
-        { delta: 16, innerDelta: 8, color: '#C4841D', label: '3' },  // Orta halka
-        { delta: 8, innerDelta: 0, color: '#E8A020', label: '4' },   // İç (merkez)
+        { delta: 24, color: '#F5C842', label: '2' },  // Sarı (dış)
+        { delta: 16, color: '#E8882D', label: '3' },  // Turuncu (orta)
+        { delta: 8, color: '#3B82F6', label: '4' },  // Mavi (iç)
     ]
 
     return (
@@ -123,7 +139,7 @@ export default function WavelengthDial({
             {/* Etiketler */}
             <div className="flex justify-between w-full max-w-lg mb-2 px-2">
                 <div className="flex items-center gap-2">
-                    <span className="text-lg">←</span>
+                    <span className="text-lg opacity-50">←</span>
                     <span className="text-sm md:text-base font-bold text-slate-200">
                         {leftLabel}
                     </span>
@@ -132,7 +148,7 @@ export default function WavelengthDial({
                     <span className="text-sm md:text-base font-bold text-slate-200">
                         {rightLabel}
                     </span>
-                    <span className="text-lg">→</span>
+                    <span className="text-lg opacity-50">→</span>
                 </div>
             </div>
 
@@ -151,7 +167,7 @@ export default function WavelengthDial({
                     </filter>
                 </defs>
 
-                {/* Ana yarım daire – krem/beyaz arka plan */}
+                {/* Ana yarım daire — krem arka plan */}
                 <path
                     d={createArcPath(0, 180, 0, 200)}
                     fill="#E8DCC8"
@@ -159,101 +175,61 @@ export default function WavelengthDial({
                     strokeWidth="3"
                 />
 
-                {/* Hedef Bölgesi - Sadece reveal veya medyum */}
-                {showTarget && zones.map((zone, idx) => {
-                    // Dış sınır dilimleri (sol ve sağ ayrı ayrı)
-                    const startLeft = Math.max(0, targetAngle - zone.delta)
-                    const endLeft = Math.max(0, targetAngle - zone.innerDelta)
-                    const startRight = Math.min(180, targetAngle + zone.innerDelta)
-                    const endRight = Math.min(180, targetAngle + zone.delta)
+                {/* Hedef bölgesi üçgen dilimleri — dıştan içe render */}
+                {showTarget && zones.map((zone, idx) => (
+                    <path
+                        key={`zone-${idx}`}
+                        d={createTrianglePath(targetAngle, zone.delta, 195)}
+                        fill={zone.color}
+                        stroke="#1a1a2e"
+                        strokeWidth="1.5"
+                    />
+                ))}
 
-                    // Merkez dilim (innerDelta===0 ise tam ortada tek dilim)
-                    if (zone.innerDelta === 0) {
-                        const s = Math.max(0, targetAngle - zone.delta)
-                        const e = Math.min(180, targetAngle + zone.delta)
-                        return (
-                            <g key={`zone-${idx}`}>
-                                <path
-                                    d={createArcPath(s, e, 0, 200)}
-                                    fill={zone.color}
-                                    stroke="#1a1a2e"
-                                    strokeWidth="1.5"
-                                />
-                                {/* Puan etiketi merkez */}
-                                {(() => {
-                                    const pos = angleToPosition(targetAngle, 110)
-                                    return (
-                                        <text
-                                            x={pos.x} y={pos.y}
-                                            textAnchor="middle" dominantBaseline="middle"
-                                            fill="#1a1a2e" fontSize="22" fontWeight="900"
-                                        >
-                                            {zone.label}
-                                        </text>
-                                    )
-                                })()}
-                            </g>
-                        )
-                    }
-
-                    return (
-                        <g key={`zone-${idx}`}>
-                            {/* Sol dilim */}
-                            {endLeft > startLeft && (
-                                <path
-                                    d={createArcPath(startLeft, endLeft, 0, 200)}
-                                    fill={zone.color}
-                                    stroke="#1a1a2e"
-                                    strokeWidth="1.5"
-                                />
-                            )}
-                            {/* Sağ dilim */}
-                            {endRight > startRight && (
-                                <path
-                                    d={createArcPath(startRight, endRight, 0, 200)}
-                                    fill={zone.color}
-                                    stroke="#1a1a2e"
-                                    strokeWidth="1.5"
-                                />
-                            )}
-                            {/* Puan etiketleri */}
-                            {(() => {
-                                const leftMid = (startLeft + endLeft) / 2
-                                const rightMid = (startRight + endRight) / 2
-                                const posL = angleToPosition(leftMid, 110)
-                                const posR = angleToPosition(rightMid, 110)
-                                return (
-                                    <>
-                                        {endLeft > startLeft && (
-                                            <text
-                                                x={posL.x} y={posL.y}
-                                                textAnchor="middle" dominantBaseline="middle"
-                                                fill="#1a1a2e" fontSize="18" fontWeight="800"
-                                            >
-                                                {zone.label}
-                                            </text>
-                                        )}
-                                        {endRight > startRight && (
-                                            <text
-                                                x={posR.x} y={posR.y}
-                                                textAnchor="middle" dominantBaseline="middle"
-                                                fill="#1a1a2e" fontSize="18" fontWeight="800"
-                                            >
-                                                {zone.label}
-                                            </text>
-                                        )}
-                                    </>
-                                )
-                            })()}
-                        </g>
+                {/* Puan etiketleri — her dilimde sol ve sağ taraf */}
+                {showTarget && (() => {
+                    const labels = []
+                    // 2 puan etiketleri (sol ve sağ dış bant)
+                    const pos2L = angleToPosition(targetAngle - 20, 120)
+                    const pos2R = angleToPosition(targetAngle + 20, 120)
+                    labels.push(
+                        <text key="l2l" x={pos2L.x} y={pos2L.y} textAnchor="middle" dominantBaseline="middle" fill="#1a1a2e" fontSize="16" fontWeight="800">2</text>,
+                        <text key="l2r" x={pos2R.x} y={pos2R.y} textAnchor="middle" dominantBaseline="middle" fill="#1a1a2e" fontSize="16" fontWeight="800">2</text>,
                     )
-                })}
+                    // 3 puan etiketleri
+                    const pos3L = angleToPosition(targetAngle - 12, 100)
+                    const pos3R = angleToPosition(targetAngle + 12, 100)
+                    labels.push(
+                        <text key="l3l" x={pos3L.x} y={pos3L.y} textAnchor="middle" dominantBaseline="middle" fill="#1a1a2e" fontSize="16" fontWeight="800">3</text>,
+                        <text key="l3r" x={pos3R.x} y={pos3R.y} textAnchor="middle" dominantBaseline="middle" fill="#1a1a2e" fontSize="16" fontWeight="800">3</text>,
+                    )
+                    // 4 puan etiketi (merkez)
+                    const pos4 = angleToPosition(targetAngle, 75)
+                    labels.push(
+                        <text key="l4" x={pos4.x} y={pos4.y} textAnchor="middle" dominantBaseline="middle" fill="white" fontSize="18" fontWeight="900">4</text>,
+                    )
+                    return labels
+                })()}
 
-                {/* Derece çizgileri */}
+                {/* Hedef merkez çizgisi */}
+                {showTarget && (() => {
+                    const tp = angleToPosition(targetAngle, 195)
+                    return (
+                        <line
+                            x1="250" y1="250"
+                            x2={tp.x} y2={tp.y}
+                            stroke="#1a1a2e"
+                            strokeWidth="2"
+                            opacity="0.6"
+                        />
+                    )
+                })()}
+
+                {/* Derece çizgileri (ince tick'ler) */}
                 {Array.from({ length: 37 }).map((_, i) => {
                     const angle = i * 5
-                    const isMain = i % 2 === 0
-                    const inner = angleToPosition(angle, isMain ? 188 : 192)
+                    const isMain = i % 4 === 0
+                    const inner = angleToPosition(angle, isMain ? 190 : 194)
                     const outer = angleToPosition(angle, 200)
                     return (
                         <line
@@ -261,31 +237,17 @@ export default function WavelengthDial({
                             x1={inner.x} y1={inner.y}
                             x2={outer.x} y2={outer.y}
                             stroke="#1a1a2e"
-                            strokeWidth={isMain ? "1.5" : "0.8"}
-                            opacity="0.4"
+                            strokeWidth={isMain ? "1.5" : "0.7"}
+                            opacity="0.3"
                         />
                     )
                 })}
 
-                {/* Hedef merkez çizgisi */}
-                {showTarget && (() => {
-                    const tp = angleToPosition(targetAngle, 200)
-                    return (
-                        <line
-                            x1="250" y1="250"
-                            x2={tp.x} y2={tp.y}
-                            stroke="#1a1a2e"
-                            strokeWidth="3"
-                            opacity="0.8"
-                        />
-                    )
-                })()}
-
-                {/* Merkez daire */}
+                {/* Merkez noktası */}
                 <circle cx="250" cy="250" r="12" fill="#1a1a2e" stroke="#333" strokeWidth="2" />
                 <circle cx="250" cy="250" r="5" fill="#555" />
 
-                {/* İbre */}
+                {/* İbre çizgisi */}
                 <line
                     x1="250" y1="250"
                     x2={needleEnd.x} y2={needleEnd.y}
@@ -295,7 +257,7 @@ export default function WavelengthDial({
                     filter="url(#needle-shadow)"
                     style={{ transition: isDragging.current ? 'none' : 'all 0.15s ease-out' }}
                 />
-                {/* İbre ucu dairesi */}
+                {/* İbre ucu */}
                 <circle
                     cx={needleEnd.x} cy={needleEnd.y}
                     r="10"
@@ -306,26 +268,20 @@ export default function WavelengthDial({
                     style={{ transition: isDragging.current ? 'none' : 'all 0.15s ease-out' }}
                 />
 
-                {/* Hareket ettiren kişi bilgisi */}
+                {/* Hareket ettiren bilgisi */}
                 {moverInfo && (
                     <g>
                         <text
-                            x={needleEnd.x}
-                            y={needleEnd.y - 22}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
+                            x={needleEnd.x} y={needleEnd.y - 22}
+                            textAnchor="middle" dominantBaseline="middle"
                             fontSize="16"
                         >
                             {moverInfo.avatar}
                         </text>
                         <text
-                            x={needleEnd.x}
-                            y={needleEnd.y - 38}
-                            textAnchor="middle"
-                            dominantBaseline="middle"
-                            fill="white"
-                            fontSize="10"
-                            fontWeight="600"
+                            x={needleEnd.x} y={needleEnd.y - 38}
+                            textAnchor="middle" dominantBaseline="middle"
+                            fill="white" fontSize="10" fontWeight="600"
                         >
                             {moverInfo.name}
                         </text>

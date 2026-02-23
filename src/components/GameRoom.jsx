@@ -1,53 +1,48 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { RotateCw, Eye, Lightbulb, Trophy, Users, ArrowRight, Sparkles, RefreshCw, CheckCircle2 } from 'lucide-react'
+import { RotateCw, Eye, Lightbulb, Trophy, ArrowRight, Sparkles, RefreshCw, CheckCircle2, PenLine } from 'lucide-react'
 import WavelengthDial from './WavelengthDial'
 import CARDS from '../data/cards'
 
 // Oyun Fazları:
-// 'waiting'  -> Oyuncular bağlandı, host başlatmayı bekliyor
-// 'clue'     -> Medyum ipucu yazar
+// 'setup'    -> Her oyuncu kendi 2 kartını görür, ipuçlarını yazar
+// 'clue'     -> Sıradaki medyumun ipucu + kartı gösteriliyor
 // 'guess'    -> Diğerleri ibreyi döndürür + hazır butonuna basar
 // 'reveal'   -> Hedef gösterilir, puan hesaplanır
 // 'finished' -> Tüm turlar bitti, oyun sonu ekranı
 
 export default function GameRoom({ network, playerName, playerAvatar, onBackToLobby }) {
-    const [phase, setPhase] = useState('waiting')
+    const [phase, setPhase] = useState('setup')
     const [card, setCard] = useState(null)
     const [targetAngle, setTargetAngle] = useState(90)
     const [dialAngle, setDialAngle] = useState(90)
     const [clue, setClue] = useState('')
-    const [clueInput, setClueInput] = useState('')
     const [isPsychic, setIsPsychic] = useState(false)
     const [score, setScore] = useState(0)
     const [roundScore, setRoundScore] = useState(0)
     const [showScoreAnim, setShowScoreAnim] = useState(false)
 
     // Yeni state'ler
-    const [currentPsychic, setCurrentPsychic] = useState(null) // { name, avatar }
-    const [turnIndex, setTurnIndex] = useState(0) // Toplam tur indeksi
-    const [totalTurns, setTotalTurns] = useState(0) // Toplam tur sayısı
+    const [currentPsychic, setCurrentPsychic] = useState(null)
+    const [turnIndex, setTurnIndex] = useState(0)
+    const [totalTurns, setTotalTurns] = useState(0)
     const [readyPlayers, setReadyPlayers] = useState(new Set())
     const [isReady, setIsReady] = useState(false)
-    const [moverInfo, setMoverInfo] = useState(null) // { name, avatar } - çubuğu hareket ettiren
-    const [hasRefresh, setHasRefresh] = useState(true) // Yenileme hakkı
-    const [allPlayers, setAllPlayers] = useState([]) // Tüm oyuncular { name, avatar }
+    const [moverInfo, setMoverInfo] = useState(null)
+    const [allPlayers, setAllPlayers] = useState([])
     const [totalScore, setTotalScore] = useState(0)
+
+    // Setup aşaması state'leri
+    const [myCards, setMyCards] = useState([]) // [{card, targetAngle, clue, hasRefresh}]
+    const [setupClues, setSetupClues] = useState(['', ''])
+    const [setupSubmitted, setSetupSubmitted] = useState(false)
+    const [playersReady, setPlayersReady] = useState(new Set()) // İpucunu gönderenler
 
     const usedCardsRef = useRef(new Set())
     const throttleRef = useRef(null)
     const moverTimeoutRef = useRef(null)
-    const turnScheduleRef = useRef([]) // Her tur için: { psychicName, psychicAvatar, cardIdx, targetAngle }
-
-    // Host mount olduğunda otomatik başlat
+    const turnScheduleRef = useRef([])
     const autoStartedRef = useRef(false)
-    useEffect(() => {
-        if (network.isHost && !autoStartedRef.current && network.players.length >= 2) {
-            autoStartedRef.current = true
-            // Küçük bir gecikme ile başlat (state'lerin oturmasını bekle)
-            setTimeout(() => startGame(), 300)
-        }
-    }) // Her render'da kontrol et
 
     // Benzersiz kart seç
     const pickUniqueCard = useCallback(() => {
@@ -62,68 +57,101 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
         return { card: CARDS[cardIdx], cardIdx }
     }, [])
 
-    // Oyunu başlat (host tarafından çağrılır)
+    // Host: Oyunu başlat (Hazırlık aşamasını başlat)
     const startGame = useCallback(() => {
         const players = network.players
         if (players.length < 2) return
 
-        // Her oyuncuya 2 tur: toplam = oyuncu sayısı × 2
-        const total = players.length * 2
-        const schedule = []
         usedCardsRef.current.clear()
 
-        // Her oyuncuya 2 tur dağıt
-        for (let round = 0; round < 2; round++) {
-            for (let i = 0; i < players.length; i++) {
-                const { card: c, cardIdx } = pickUniqueCard()
-                const target = Math.floor(Math.random() * 140) + 20 // 20-160 arası
-                schedule.push({
-                    psychicName: players[i].name,
-                    psychicAvatar: players[i].avatar,
-                    card: c,
-                    cardIdx,
-                    targetAngle: target,
-                })
-            }
-        }
+        // Her oyuncuya 2 benzersiz kart dağıt
+        const assignments = {}
+        players.forEach(p => {
+            const c1 = pickUniqueCard()
+            const c2 = pickUniqueCard()
+            assignments[p.name] = [
+                { card: c1.card, cardIdx: c1.cardIdx, targetAngle: Math.floor(Math.random() * 140) + 20 },
+                { card: c2.card, cardIdx: c2.cardIdx, targetAngle: Math.floor(Math.random() * 140) + 20 },
+            ]
+        })
 
-        turnScheduleRef.current = schedule
-
-        // İlk turu başlat
-        const firstTurn = schedule[0]
-        setTotalTurns(total)
-        setTurnIndex(0)
+        setAllPlayers(players.map(p => ({ name: p.name, avatar: p.avatar })))
+        setTotalTurns(players.length * 2)
         setScore(0)
         setTotalScore(0)
+        setPlayersReady(new Set())
+        setSetupSubmitted(false)
+        setPhase('setup')
 
-        setCard(firstTurn.card)
-        setTargetAngle(firstTurn.targetAngle)
-        setDialAngle(90)
-        setClue('')
-        setClueInput('')
-        setPhase('clue')
-        setIsPsychic(firstTurn.psychicName === playerName)
-        setCurrentPsychic({ name: firstTurn.psychicName, avatar: firstTurn.psychicAvatar })
-        setRoundScore(0)
-        setShowScoreAnim(false)
-        setReadyPlayers(new Set())
-        setIsReady(false)
-        setHasRefresh(true)
-        setAllPlayers(players.map(p => ({ name: p.name, avatar: p.avatar })))
+        // Kendi kartlarımı ayarla
+        const mine = assignments[playerName]
+        if (mine) {
+            setMyCards(mine.map(c => ({ ...c, clue: '', hasRefresh: true })))
+            setSetupClues(['', ''])
+        }
 
-        // Broadcast
+        // Herkese kartları gönder
         network.broadcast({
             type: 'game-init',
-            schedule: schedule,
-            totalTurns: total,
+            assignments,
+            totalTurns: players.length * 2,
             players: players.map(p => ({ name: p.name, avatar: p.avatar })),
         })
     }, [network, playerName, pickUniqueCard])
 
-    // Belirli bir tura geç
-    const goToTurn = useCallback((index, schedule, players) => {
+    // Host mount olduğunda otomatik başlat
+    useEffect(() => {
+        if (network.isHost && !autoStartedRef.current && network.players.length >= 2) {
+            autoStartedRef.current = true
+            setTimeout(() => startGame(), 300)
+        }
+    })
+
+    // Tur programını oluştur ve başlat
+    const buildAndStartTurns = useCallback((allClues, players) => {
+        // Tur sırası: herkesin 1. kartı, sonra herkesin 2. kartı
+        const schedule = []
+        for (let cardIdx = 0; cardIdx < 2; cardIdx++) {
+            for (let p = 0; p < players.length; p++) {
+                const pName = players[p].name
+                const pAvatar = players[p].avatar
+                const clueData = allClues[pName]?.[cardIdx]
+                if (clueData) {
+                    schedule.push({
+                        psychicName: pName,
+                        psychicAvatar: pAvatar,
+                        card: clueData.card,
+                        targetAngle: clueData.targetAngle,
+                        clue: clueData.clue,
+                    })
+                }
+            }
+        }
+
+        turnScheduleRef.current = schedule
+        setTurnIndex(0)
+
+        if (schedule.length > 0) {
+            const first = schedule[0]
+            setCard(first.card)
+            setTargetAngle(first.targetAngle)
+            setClue(first.clue)
+            setDialAngle(90)
+            setPhase('guess')
+            setIsPsychic(first.psychicName === playerName)
+            setCurrentPsychic({ name: first.psychicName, avatar: first.psychicAvatar })
+            setRoundScore(0)
+            setShowScoreAnim(false)
+            setReadyPlayers(new Set())
+            setIsReady(false)
+            setMoverInfo(null)
+        }
+    }, [playerName])
+
+    // Belirli tura geç
+    const goToTurn = useCallback((index) => {
+        const schedule = turnScheduleRef.current
         if (index >= schedule.length) {
-            // Oyun bitti
             setPhase('finished')
             return
         }
@@ -131,27 +159,27 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
         const turn = schedule[index]
         setCard(turn.card)
         setTargetAngle(turn.targetAngle)
+        setClue(turn.clue)
         setDialAngle(90)
-        setClue('')
-        setClueInput('')
-        setPhase('clue')
+        setPhase('guess')
         setIsPsychic(turn.psychicName === playerName)
         setCurrentPsychic({ name: turn.psychicName, avatar: turn.psychicAvatar })
         setRoundScore(0)
         setShowScoreAnim(false)
         setReadyPlayers(new Set())
         setIsReady(false)
-        setHasRefresh(true)
         setMoverInfo(null)
         setTurnIndex(index)
     }, [playerName])
 
-    // Ağdan gelen mesajları dinle
+    // Tüm clue verilerini saklayan ref
+    const allCluesRef = useRef({})
+
+    // Ağ mesajlarını dinle
     useEffect(() => {
         network.onMessage((data) => {
             switch (data.type) {
                 case 'player-joined': {
-                    // Host, gelen oyuncuyu listeye ekle
                     if (network.isHost) {
                         const existing = network.playersRef.current
                         const alreadyExists = existing.some(p => p.name === data.name)
@@ -164,7 +192,6 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
                                 connId: null,
                             }]
                             network.updatePlayers(updated)
-                            // Güncel listeyi herkese gönder
                             network.broadcast({
                                 type: 'player-list',
                                 players: updated.map(p => ({ name: p.name, avatar: p.avatar, isHost: p.isHost })),
@@ -175,56 +202,54 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
                 }
 
                 case 'player-list': {
-                    // Misafir oyuncu listesini günceller
                     if (!network.isHost) {
                         network.updatePlayers(data.players.map(p => ({
-                            ...p,
-                            id: p.name,
-                            connId: null,
+                            ...p, id: p.name, connId: null,
                         })))
                     }
                     break
                 }
 
-                case 'game-start':
-                    // Host başlattığında misafirler de oyuna geçer (App.jsx'te handle ediliyor)
-                    break
-
                 case 'game-init': {
-                    // Misafirler oyun başlangıç bilgilerini alır
-                    turnScheduleRef.current = data.schedule
+                    const mine = data.assignments[playerName]
+                    setAllPlayers(data.players)
                     setTotalTurns(data.totalTurns)
-                    setTurnIndex(0)
                     setScore(0)
                     setTotalScore(0)
-                    setAllPlayers(data.players)
-
-                    const firstTurn = data.schedule[0]
-                    setCard(firstTurn.card)
-                    setTargetAngle(firstTurn.targetAngle)
-                    setDialAngle(90)
-                    setClue('')
-                    setClueInput('')
-                    setPhase('clue')
-                    setIsPsychic(firstTurn.psychicName === playerName)
-                    setCurrentPsychic({ name: firstTurn.psychicName, avatar: firstTurn.psychicAvatar })
-                    setRoundScore(0)
-                    setShowScoreAnim(false)
-                    setReadyPlayers(new Set())
-                    setIsReady(false)
-                    setHasRefresh(true)
+                    setPlayersReady(new Set())
+                    setSetupSubmitted(false)
+                    setPhase('setup')
+                    if (mine) {
+                        setMyCards(mine.map(c => ({ ...c, clue: '', hasRefresh: true })))
+                        setSetupClues(['', ''])
+                    }
                     break
                 }
 
-                case 'clue-submitted':
-                    setClue(data.clue)
-                    setPhase('guess')
+                case 'clues-submitted': {
+                    // Bir oyuncu ipuçlarını gönderdi
+                    setPlayersReady(prev => {
+                        const next = new Set(prev)
+                        next.add(data.playerName)
+                        return next
+                    })
+
+                    // Host: clue verilerini topla
+                    if (network.isHost) {
+                        allCluesRef.current[data.playerName] = data.clueData
+                    }
                     break
+                }
+
+                case 'all-clues-ready': {
+                    // Tüm ipuçları toplandı, turları başlat
+                    buildAndStartTurns(data.allClues, data.players)
+                    break
+                }
 
                 case 'dial-move':
                     setDialAngle(data.angle)
                     setMoverInfo({ name: data.moverName, avatar: data.moverAvatar })
-                    // 2 saniye sonra mover bilgisini temizle
                     if (moverTimeoutRef.current) clearTimeout(moverTimeoutRef.current)
                     moverTimeoutRef.current = setTimeout(() => setMoverInfo(null), 2000)
                     break
@@ -248,27 +273,29 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
                 }
 
                 case 'next-turn': {
-                    goToTurn(data.turnIndex, turnScheduleRef.current, allPlayers)
+                    goToTurn(data.turnIndex)
                     break
                 }
 
                 case 'refresh-card': {
-                    // Kart yenilendi
-                    const schedule = turnScheduleRef.current
-                    schedule[data.turnIndex] = {
-                        ...schedule[data.turnIndex],
-                        card: data.newCard,
-                        cardIdx: data.newCardIdx,
-                        targetAngle: data.newTarget,
+                    // Misafir: kartını güncelle
+                    if (data.playerName === playerName) {
+                        setMyCards(prev => {
+                            const copy = [...prev]
+                            copy[data.slotIndex] = {
+                                ...copy[data.slotIndex],
+                                card: data.newCard,
+                                targetAngle: data.newTarget,
+                                hasRefresh: false,
+                            }
+                            return copy
+                        })
                     }
-                    turnScheduleRef.current = schedule
-                    setCard(data.newCard)
-                    setTargetAngle(data.newTarget)
                     break
                 }
 
                 case 'restart-game': {
-                    setPhase('waiting')
+                    setPhase('setup')
                     setScore(0)
                     setTotalScore(0)
                     setTurnIndex(0)
@@ -276,6 +303,8 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
                     setClue('')
                     usedCardsRef.current.clear()
                     turnScheduleRef.current = []
+                    allCluesRef.current = {}
+                    autoStartedRef.current = false
                     break
                 }
 
@@ -283,9 +312,9 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
                     break
             }
         })
-    }, [network, playerName, goToTurn, allPlayers])
+    }, [network, playerName, goToTurn, buildAndStartTurns])
 
-    // Host: Herkes hazır mı kontrol et
+    // Host: all-ready kontrol (guess aşaması)
     useEffect(() => {
         if (!network.isHost || phase !== 'guess') return
 
@@ -294,7 +323,6 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
             nonPsychicPlayers.every(p => readyPlayers.has(p.name))
 
         if (allReady) {
-            // Puan hesapla
             const diff = Math.abs(dialAngle - targetAngle)
             let pts = 0
             if (diff <= 8) pts = 4
@@ -312,15 +340,25 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
         }
     }, [readyPlayers, network, phase, allPlayers, currentPsychic, dialAngle, targetAngle])
 
-    // İpucu gönder
-    const submitClue = () => {
-        if (!clueInput.trim()) return
-        setClue(clueInput.trim())
-        setPhase('guess')
-        network.broadcast({ type: 'clue-submitted', clue: clueInput.trim() })
-    }
+    // Host: tüm ipuçları gönderildi mi kontrol
+    useEffect(() => {
+        if (!network.isHost || phase !== 'setup') return
 
-    // İbre hareket -> broadcast
+        const allSubmitted = allPlayers.length > 0 &&
+            allPlayers.every(p => playersReady.has(p.name))
+
+        if (allSubmitted) {
+            const clues = allCluesRef.current
+            buildAndStartTurns(clues, allPlayers)
+            network.broadcast({
+                type: 'all-clues-ready',
+                allClues: clues,
+                players: allPlayers,
+            })
+        }
+    }, [playersReady, network, phase, allPlayers, buildAndStartTurns])
+
+    // İbre hareket
     const handleDialMove = useCallback((angle) => {
         setDialAngle(angle)
         if (throttleRef.current) return
@@ -346,29 +384,63 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
         network.broadcast({ type: 'player-ready', playerName })
     }
 
-    // Kart yenileme
-    const handleRefresh = () => {
-        if (!hasRefresh || !isPsychic) return
-        setHasRefresh(false)
+    // Setup: İpuçlarını gönder
+    const handleSubmitClues = () => {
+        if (!setupClues[0].trim() || !setupClues[1].trim()) return
+        setSetupSubmitted(true)
+
+        const clueData = myCards.map((c, i) => ({
+            card: c.card,
+            targetAngle: c.targetAngle,
+            clue: setupClues[i].trim(),
+        }))
+
+        setPlayersReady(prev => {
+            const next = new Set(prev)
+            next.add(playerName)
+            return next
+        })
+
+        if (network.isHost) {
+            allCluesRef.current[playerName] = clueData
+        }
+
+        network.broadcast({
+            type: 'clues-submitted',
+            playerName,
+            clueData,
+        })
+    }
+
+    // Setup: Kart yenile
+    const handleRefreshCard = (slotIndex) => {
+        const current = myCards[slotIndex]
+        if (!current.hasRefresh) return
 
         const { card: newCard, cardIdx } = pickUniqueCard()
         const newTarget = Math.floor(Math.random() * 140) + 20
 
-        const schedule = turnScheduleRef.current
-        schedule[turnIndex] = {
-            ...schedule[turnIndex],
-            card: newCard,
-            cardIdx,
-            targetAngle: newTarget,
-        }
-        turnScheduleRef.current = schedule
-
-        setCard(newCard)
-        setTargetAngle(newTarget)
+        setMyCards(prev => {
+            const copy = [...prev]
+            copy[slotIndex] = {
+                card: newCard,
+                cardIdx,
+                targetAngle: newTarget,
+                clue: '',
+                hasRefresh: false,
+            }
+            return copy
+        })
+        setSetupClues(prev => {
+            const copy = [...prev]
+            copy[slotIndex] = ''
+            return copy
+        })
 
         network.broadcast({
             type: 'refresh-card',
-            turnIndex,
+            playerName,
+            slotIndex,
             newCard,
             newCardIdx: cardIdx,
             newTarget,
@@ -383,90 +455,145 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
             network.broadcast({ type: 'next-turn', turnIndex: nextIdx })
             return
         }
-        goToTurn(nextIdx, turnScheduleRef.current, allPlayers)
+        goToTurn(nextIdx)
         network.broadcast({ type: 'next-turn', turnIndex: nextIdx })
     }
 
     // Tekrar oyna
     const handleRestart = () => {
         if (network.isHost) {
-            setPhase('waiting')
-            setScore(0)
-            setTotalScore(0)
-            setTurnIndex(0)
-            setCard(null)
-            setClue('')
+            autoStartedRef.current = false
+            allCluesRef.current = {}
             usedCardsRef.current.clear()
             turnScheduleRef.current = []
             network.broadcast({ type: 'restart-game' })
+            setTimeout(() => startGame(), 500)
         }
     }
 
-    // Host: oyunu başlat
-    const handleHostStart = () => {
-        startGame()
-    }
-
-    // Puan skalası
+    // Puan değerlendirmesi
     const getScoreRating = (s) => {
-        if (s >= totalTurns * 4 * 0.75) return { text: '🏆 EFSANE!', color: 'text-yellow-400' }
-        if (s >= totalTurns * 4 * 0.5) return { text: '🌟 Harika!', color: 'text-green-400' }
-        if (s >= totalTurns * 4 * 0.3) return { text: '👍 İyi!', color: 'text-blue-400' }
+        const max = totalTurns * 4
+        if (s >= max * 0.75) return { text: '🏆 EFSANE!', color: 'text-yellow-400' }
+        if (s >= max * 0.5) return { text: '🌟 Harika!', color: 'text-green-400' }
+        if (s >= max * 0.3) return { text: '👍 İyi!', color: 'text-blue-400' }
         return { text: '💪 Geliştirilmeli', color: 'text-orange-400' }
     }
 
-    // --- RENDER ---
+    // ═══════════════════ RENDER ═══════════════════
 
-    // Bekleme ekranı (host oyunu başlatmadı)
-    if (phase === 'waiting') {
+    // HAZIRLIK AŞAMASI
+    if (phase === 'setup') {
         return (
             <div className="min-h-screen flex flex-col items-center justify-center px-4 py-6">
-                <div className="glass-strong rounded-3xl p-8 max-w-md w-full text-center">
-                    <h2 className="text-2xl font-bold mb-4">Oyun Odası</h2>
-
-                    {/* Oyuncu listesi */}
-                    <div className="mb-6">
-                        <p className="text-text-secondary text-sm mb-3">Oyuncular</p>
-                        <div className="flex flex-wrap justify-center gap-3">
-                            {network.players.map((p, i) => (
-                                <div key={i} className="glass px-3 py-2 rounded-xl flex items-center gap-2">
-                                    <span className="text-xl">{p.avatar}</span>
-                                    <span className="text-sm font-medium">{p.name}</span>
-                                    {p.isHost && (
-                                        <span className="text-xs bg-purple-600/40 px-1.5 py-0.5 rounded-md text-purple-300">Host</span>
-                                    )}
-                                </div>
-                            ))}
-                        </div>
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="glass-strong rounded-3xl p-6 max-w-lg w-full"
+                >
+                    <div className="text-center mb-5">
+                        <PenLine className="w-8 h-8 text-amber-400 mx-auto mb-2" />
+                        <h2 className="text-xl font-bold">İpuçlarını Hazırla</h2>
+                        <p className="text-text-secondary text-sm mt-1">
+                            Her kart için bir ipucu yaz. Hedef bölgeyi hatırla!
+                        </p>
                     </div>
 
-                    {network.isHost ? (
+                    {myCards.map((c, idx) => (
+                        <div key={idx} className="glass rounded-2xl p-4 mb-4">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs text-text-muted">Kart {idx + 1}</span>
+                                {c.hasRefresh && !setupSubmitted && (
+                                    <button
+                                        onClick={() => handleRefreshCard(idx)}
+                                        className="text-xs flex items-center gap-1 text-purple-400 hover:text-purple-300 transition-colors"
+                                    >
+                                        <RefreshCw className="w-3 h-3" />
+                                        Yenile
+                                    </button>
+                                )}
+                                {!c.hasRefresh && (
+                                    <span className="text-xs text-text-muted">Yenileme hakkı kullanıldı</span>
+                                )}
+                            </div>
+
+                            <div className="flex justify-between mb-3">
+                                <span className="text-sm font-bold text-blue-300 bg-blue-900/30 px-2.5 py-1 rounded-lg">
+                                    {c.card.left}
+                                </span>
+                                <span className="text-sm font-bold text-amber-300 bg-amber-900/30 px-2.5 py-1 rounded-lg">
+                                    {c.card.right}
+                                </span>
+                            </div>
+
+                            {/* Mini kadran — hedefi göster */}
+                            <div className="mb-3">
+                                <WavelengthDial
+                                    targetAngle={c.targetAngle}
+                                    dialAngle={90}
+                                    showTarget={true}
+                                    disabled={true}
+                                    leftLabel={c.card.left}
+                                    rightLabel={c.card.right}
+                                />
+                            </div>
+
+                            <input
+                                type="text"
+                                value={setupClues[idx]}
+                                onChange={(e) => {
+                                    setSetupClues(prev => {
+                                        const copy = [...prev]
+                                        copy[idx] = e.target.value
+                                        return copy
+                                    })
+                                }}
+                                disabled={setupSubmitted}
+                                placeholder="İpucu yaz..."
+                                className="input-field text-center"
+                                maxLength={50}
+                            />
+                        </div>
+                    ))}
+
+                    {!setupSubmitted ? (
                         <button
-                            onClick={handleHostStart}
-                            disabled={network.playerCount < 2}
-                            className="btn-primary w-full disabled:opacity-40"
+                            onClick={handleSubmitClues}
+                            disabled={!setupClues[0].trim() || !setupClues[1].trim()}
+                            className="btn-primary w-full flex items-center justify-center gap-2 disabled:opacity-40"
                         >
-                            {network.playerCount < 2 ? 'En az 2 oyuncu gerekli' : `Oyunu Başlat 🚀`}
+                            <CheckCircle2 className="w-5 h-5" />
+                            İpuçlarını Onayla
                         </button>
                     ) : (
-                        <div className="flex items-center justify-center gap-2 text-text-secondary">
-                            {[0, 1, 2].map(i => (
-                                <motion.div
-                                    key={i}
-                                    className="w-2 h-2 bg-purple-400 rounded-full"
-                                    animate={{ opacity: [0.3, 1, 0.3] }}
-                                    transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.3 }}
-                                />
-                            ))}
-                            <span className="text-sm ml-2">Host oyunu başlatmayı bekliyor...</span>
+                        <div className="text-center">
+                            <div className="glass px-4 py-3 rounded-xl text-green-400 text-sm font-medium flex items-center justify-center gap-2 mb-3">
+                                <CheckCircle2 className="w-4 h-4" />
+                                İpuçların hazır! Diğerlerini bekliyoruz...
+                            </div>
+                            <div className="flex flex-wrap gap-2 justify-center">
+                                {allPlayers.map((p, i) => (
+                                    <div
+                                        key={i}
+                                        className={`px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 ${playersReady.has(p.name)
+                                                ? 'bg-green-600/30 text-green-300'
+                                                : 'bg-bg-card text-text-muted'
+                                            }`}
+                                    >
+                                        <span>{p.avatar}</span>
+                                        <span>{p.name}</span>
+                                        {playersReady.has(p.name) && <CheckCircle2 className="w-3 h-3" />}
+                                    </div>
+                                ))}
+                            </div>
                         </div>
                     )}
-                </div>
+                </motion.div>
             </div>
         )
     }
 
-    // Oyun sonu ekranı
+    // OYUN SONU EKRANI
     if (phase === 'finished') {
         const rating = getScoreRating(totalScore)
         const maxScore = totalTurns * 4
@@ -508,7 +635,6 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
                         {rating.text}
                     </motion.p>
 
-                    {/* Oyuncu listesi */}
                     <div className="flex flex-wrap justify-center gap-2 mb-6">
                         {allPlayers.map((p, i) => (
                             <div key={i} className="glass px-3 py-1.5 rounded-lg flex items-center gap-1.5">
@@ -527,7 +653,6 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
                             Tekrar Oyna
                         </button>
                     )}
-
                     {!network.isHost && (
                         <p className="text-text-secondary text-sm">Host tekrar oynamayı başlatabilir</p>
                     )}
@@ -542,9 +667,7 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
             <div className="min-h-screen flex items-center justify-center">
                 <div className="flex items-center gap-3 text-text-secondary">
                     {[0, 1, 2].map(i => (
-                        <motion.div
-                            key={i}
-                            className="w-3 h-3 bg-purple-400 rounded-full"
+                        <motion.div key={i} className="w-3 h-3 bg-purple-400 rounded-full"
                             animate={{ opacity: [0.3, 1, 0.3], scale: [0.8, 1.2, 0.8] }}
                             transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
                         />
@@ -560,14 +683,12 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
     const readyCount = nonPsychicPlayers.filter(p => readyPlayers.has(p.name)).length
 
     return (
-        <div className="min-h-screen flex flex-col items-center px-4 py-4 md:py-6">
-            {/* Üst Bilgi Çubuğu */}
+        <div className="min-h-screen flex flex-col items-center px-4 py-4 md:py-6 pb-20">
+            {/* Üst Bilgi */}
             <div className="w-full max-w-lg flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                    <div className="glass px-3 py-1.5 rounded-xl flex items-center gap-2">
-                        <span className="text-xs text-text-muted">Tur</span>
-                        <span className="text-sm font-bold text-purple-300">{turnIndex + 1}/{totalTurns}</span>
-                    </div>
+                <div className="glass px-3 py-1.5 rounded-xl flex items-center gap-2">
+                    <span className="text-xs text-text-muted">Tur</span>
+                    <span className="text-sm font-bold text-purple-300">{turnIndex + 1}/{totalTurns}</span>
                 </div>
                 <div className="glass px-4 py-1.5 rounded-xl flex items-center gap-2">
                     <Trophy className="w-4 h-4 text-amber-400" />
@@ -582,104 +703,13 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
                     <span className="text-xl">{currentPsychic.avatar}</span>
                     <span className="font-semibold text-sm">{currentPsychic.name}</span>
                     <span className="text-xs text-text-muted">
-                        {isPsychic ? '(Sen) — Medyum' : '— Medyum'}
+                        {isPsychic ? '(Sen) — Medyum 🔮' : '— Medyum 🔮'}
                     </span>
                 </div>
             )}
 
-            {/* Faz Göstergesi */}
-            <AnimatePresence mode="wait">
-                <motion.div
-                    key={phase}
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: 10 }}
-                    className="mb-3"
-                >
-                    {phase === 'clue' && (
-                        <div className="glass px-5 py-2 rounded-2xl flex items-center gap-2">
-                            <Lightbulb className="w-5 h-5 text-amber-400" />
-                            <span className="font-semibold text-sm">
-                                {isPsychic ? 'İpucu Yaz!' : `${currentPsychic?.name} ipucu yazıyor...`}
-                            </span>
-                        </div>
-                    )}
-                    {phase === 'guess' && (
-                        <div className="glass px-5 py-2 rounded-2xl flex items-center gap-2">
-                            <RotateCw className="w-5 h-5 text-blue-400" />
-                            <span className="font-semibold text-sm">İbreyi Döndür!</span>
-                        </div>
-                    )}
-                    {phase === 'reveal' && (
-                        <div className="glass px-5 py-2 rounded-2xl flex items-center gap-2">
-                            <Eye className="w-5 h-5 text-green-400" />
-                            <span className="font-semibold text-sm">Sonuç!</span>
-                        </div>
-                    )}
-                </motion.div>
-            </AnimatePresence>
-
-            {/* İpucu Alanı - Medyum */}
-            {phase === 'clue' && isPsychic && (
-                <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="glass-strong rounded-2xl p-4 max-w-lg w-full mb-3"
-                >
-                    <div className="flex gap-2 mb-2">
-                        <input
-                            type="text"
-                            value={clueInput}
-                            onChange={(e) => setClueInput(e.target.value)}
-                            placeholder="İpucu yaz..."
-                            className="input-field"
-                            maxLength={50}
-                            onKeyDown={(e) => e.key === 'Enter' && submitClue()}
-                        />
-                        <button
-                            onClick={submitClue}
-                            disabled={!clueInput.trim()}
-                            className="btn-primary whitespace-nowrap disabled:opacity-40 px-4"
-                        >
-                            <ArrowRight className="w-5 h-5" />
-                        </button>
-                    </div>
-                    {hasRefresh && (
-                        <button
-                            onClick={handleRefresh}
-                            className="btn-secondary w-full flex items-center justify-center gap-2 text-sm py-2"
-                        >
-                            <RefreshCw className="w-4 h-4" />
-                            Soruyu Yenile (1 Hak)
-                        </button>
-                    )}
-                </motion.div>
-            )}
-
-            {phase === 'clue' && !isPsychic && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="glass rounded-2xl p-4 max-w-lg w-full mb-3 text-center"
-                >
-                    <div className="flex items-center justify-center gap-2">
-                        {[0, 1, 2].map(i => (
-                            <motion.div
-                                key={i}
-                                className="w-2 h-2 bg-amber-400 rounded-full"
-                                animate={{ opacity: [0.3, 1, 0.3] }}
-                                transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.3 }}
-                            />
-                        ))}
-                    </div>
-                    <p className="text-text-secondary text-sm mt-2">
-                        {currentPsychic?.avatar} {currentPsychic?.name} ipucu düşünüyor...
-                    </p>
-                </motion.div>
-            )}
-
             {/* İpucu Gösterim */}
-            {(phase === 'guess' || phase === 'reveal') && clue && (
+            {clue && (
                 <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
@@ -697,26 +727,21 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
                     targetAngle={targetAngle}
                     dialAngle={dialAngle}
                     onAngleChange={handleDialMove}
-                    showTarget={phase === 'reveal' || (phase === 'clue' && isPsychic)}
-                    disabled={phase === 'clue' || phase === 'reveal' || isPsychic}
+                    showTarget={phase === 'reveal' || isPsychic}
+                    disabled={phase === 'reveal' || isPsychic}
                     leftLabel={card.left}
                     rightLabel={card.right}
-                    phase={phase}
                     moverInfo={moverInfo}
                 />
             </div>
 
-            {/* Guess aşaması: Hazır butonu */}
+            {/* Guess: Hazır butonu */}
             {phase === 'guess' && !isPsychic && (
                 <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     className="flex flex-col items-center gap-3 w-full max-w-lg"
                 >
-                    <p className="text-text-secondary text-xs text-center">
-                        İbreyi sürükleyerek tahmininizi yapın, hazır olunca butona basın
-                    </p>
-
                     {!isReady ? (
                         <button
                             onClick={handleReady}
@@ -732,45 +757,31 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
                         </div>
                     )}
 
-                    {/* Hazır durumu */}
                     <div className="flex flex-wrap gap-2 justify-center">
                         {nonPsychicPlayers.map((p, i) => (
-                            <div
-                                key={i}
-                                className={`px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 ${readyPlayers.has(p.name)
+                            <div key={i} className={`px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 ${readyPlayers.has(p.name)
                                     ? 'bg-green-600/30 text-green-300'
                                     : 'bg-bg-card text-text-muted'
-                                    }`}
-                            >
+                                }`}>
                                 <span>{p.avatar}</span>
                                 <span>{p.name}</span>
                                 {readyPlayers.has(p.name) && <CheckCircle2 className="w-3 h-3" />}
                             </div>
                         ))}
                     </div>
-                    <p className="text-text-muted text-xs">
-                        {readyCount}/{nonPsychicPlayers.length} hazır
-                    </p>
+                    <p className="text-text-muted text-xs">{readyCount}/{nonPsychicPlayers.length} hazır</p>
                 </motion.div>
             )}
 
-            {/* Medyum guess aşamasında bekler */}
+            {/* Medyum bekliyor */}
             {phase === 'guess' && isPsychic && (
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    className="text-center"
-                >
-                    <p className="text-text-secondary text-sm mb-2">
-                        Takım arkadaşların ibreyi döndürüyor...
-                    </p>
-                    <p className="text-text-muted text-xs">
-                        {readyCount}/{nonPsychicPlayers.length} hazır
-                    </p>
-                </motion.div>
+                <div className="text-center">
+                    <p className="text-text-secondary text-sm mb-2">Takım ibreyi döndürüyor...</p>
+                    <p className="text-text-muted text-xs">{readyCount}/{nonPsychicPlayers.length} hazır</p>
+                </div>
             )}
 
-            {/* Sonuç Ekranı */}
+            {/* Sonuç */}
             {phase === 'reveal' && (
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -786,15 +797,15 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
                                 className="text-center"
                             >
                                 <motion.div
-                                    className={`text-6xl font-black mb-2 ${roundScore === 4 ? 'text-green-400' :
-                                        roundScore === 3 ? 'text-emerald-400' :
-                                            roundScore === 2 ? 'text-amber-400' :
-                                                'text-red-400'
+                                    className={`text-6xl font-black mb-2 ${roundScore === 4 ? 'text-blue-400' :
+                                            roundScore === 3 ? 'text-orange-400' :
+                                                roundScore === 2 ? 'text-yellow-400' :
+                                                    'text-red-400'
                                         }`}
                                     animate={{ scale: [1, 1.2, 1] }}
                                     transition={{ duration: 0.5 }}
                                 >
-                                    {roundScore === 4 && <Sparkles className="w-12 h-12 mx-auto mb-1 text-green-400" />}
+                                    {roundScore === 4 && <Sparkles className="w-12 h-12 mx-auto mb-1 text-blue-400" />}
                                     +{roundScore}
                                 </motion.div>
                                 <p className="text-text-secondary text-sm">
@@ -807,19 +818,17 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
                         )}
                     </AnimatePresence>
 
-                    {(network.isHost || turnIndex + 1 >= totalTurns) && (
-                        <button
-                            onClick={handleNextTurn}
-                            className="btn-primary w-full max-w-xs flex items-center justify-center gap-2"
-                        >
-                            <RotateCw className="w-5 h-5" />
-                            {turnIndex + 1 >= totalTurns ? 'Sonuçları Gör' : 'Sonraki Tur'}
-                        </button>
-                    )}
+                    <button
+                        onClick={handleNextTurn}
+                        className="btn-primary w-full max-w-xs flex items-center justify-center gap-2"
+                    >
+                        <RotateCw className="w-5 h-5" />
+                        {turnIndex + 1 >= totalTurns ? 'Sonuçları Gör' : 'Sonraki Tur'}
+                    </button>
                 </motion.div>
             )}
 
-            {/* Alt: Oyuncu Listesi */}
+            {/* Alt: Oyuncu Çubuğu */}
             <div className="fixed bottom-0 left-0 right-0 bg-bg-primary/80 backdrop-blur-md border-t border-border py-2 px-4">
                 <div className="flex justify-center gap-3 max-w-lg mx-auto overflow-x-auto">
                     {allPlayers.map((p, i) => (
