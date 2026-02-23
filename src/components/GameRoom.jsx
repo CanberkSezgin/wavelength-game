@@ -5,15 +5,15 @@ import WavelengthDial from './WavelengthDial'
 import CARDS from '../data/cards'
 import { playBip, playCelebration, playFail, playTimerWarn } from '../utils/sounds'
 
-// Konfeti bileşeni
+// Konfeti bileşeni — hooks kuralına uygun
 function Confetti({ active }) {
-    if (!active) return null
     const pieces = useRef(Array.from({ length: 60 }, (_, i) => ({
         id: i, x: Math.random() * 100,
         color: ['#FFD700', '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#FF69B4'][i % 8],
         delay: Math.random() * 0.5, size: Math.random() * 8 + 4,
         isCircle: Math.random() > 0.5, dir: Math.random() > 0.5 ? 1 : -1,
     }))).current
+    if (!active) return null
     return (
         <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 50 }}>
             {pieces.map(p => (

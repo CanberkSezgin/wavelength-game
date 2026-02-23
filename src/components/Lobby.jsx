@@ -195,8 +195,8 @@ export default function Lobby({ network, onGameStart }) {
                             <p className="text-text-secondary text-xs font-semibold mb-2">✏️ Özel Kart Ekle (1 Hak)</p>
                             {customCards.length === 0 ? (
                                 <div className="flex gap-2">
-                                    <input type="text" value={newCardLeft} onChange={e => setNewCardLeft(e.target.value)} placeholder="Sol (min)" className="input-field text-xs !py-2 !px-2" maxLength={30} />
-                                    <input type="text" value={newCardRight} onChange={e => setNewCardRight(e.target.value)} placeholder="Sağ (max)" className="input-field text-xs !py-2 !px-2" maxLength={30} />
+                                    <input type="text" value={newCardLeft} onChange={e => setNewCardLeft(e.target.value)} placeholder="Sol etiket" className="input-field text-xs !py-2 !px-2" maxLength={30} />
+                                    <input type="text" value={newCardRight} onChange={e => setNewCardRight(e.target.value)} placeholder="Sağ etiket" className="input-field text-xs !py-2 !px-2" maxLength={30} />
                                     <button onClick={handleAddCustomCard} disabled={!newCardLeft.trim() || !newCardRight.trim()} className="bg-purple-600 hover:bg-purple-500 text-white rounded-xl px-3 disabled:opacity-30 transition-colors">
                                         <Plus className="w-4 h-4" />
                                     </button>
