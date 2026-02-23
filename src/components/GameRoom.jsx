@@ -39,6 +39,16 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
     const moverTimeoutRef = useRef(null)
     const turnScheduleRef = useRef([]) // Her tur için: { psychicName, psychicAvatar, cardIdx, targetAngle }
 
+    // Host mount olduğunda otomatik başlat
+    const autoStartedRef = useRef(false)
+    useEffect(() => {
+        if (network.isHost && !autoStartedRef.current && network.players.length >= 2) {
+            autoStartedRef.current = true
+            // Küçük bir gecikme ile başlat (state'lerin oturmasını bekle)
+            setTimeout(() => startGame(), 300)
+        }
+    }) // Her render'da kontrol et
+
     // Benzersiz kart seç
     const pickUniqueCard = useCallback(() => {
         let availableCards = CARDS.filter((_, i) => !usedCardsRef.current.has(i))
@@ -728,8 +738,8 @@ export default function GameRoom({ network, playerName, playerAvatar, onBackToLo
                             <div
                                 key={i}
                                 className={`px-2.5 py-1 rounded-lg text-xs flex items-center gap-1 ${readyPlayers.has(p.name)
-                                        ? 'bg-green-600/30 text-green-300'
-                                        : 'bg-bg-card text-text-muted'
+                                    ? 'bg-green-600/30 text-green-300'
+                                    : 'bg-bg-card text-text-muted'
                                     }`}
                             >
                                 <span>{p.avatar}</span>

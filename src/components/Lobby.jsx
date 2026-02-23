@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Wifi, Users, ArrowRight, Copy, Check, Radio } from 'lucide-react'
 import AVATARS from '../data/avatars'
@@ -13,6 +13,35 @@ export default function Lobby({ network, onGameStart }) {
     const [copied, setCopied] = useState(false)
 
     const getDisplayName = (name) => applyNameTrick(name.trim())
+
+    // Lobi'de mesajları dinle (özellikle player-joined)
+    useEffect(() => {
+        network.onMessage((data) => {
+            if (data.type === 'player-joined' && network.isHost) {
+                const existing = network.playersRef.current
+                const alreadyExists = existing.some(p => p.name === data.name)
+                if (!alreadyExists) {
+                    const updated = [...existing, {
+                        id: Date.now().toString(),
+                        name: data.name,
+                        avatar: data.avatar,
+                        isHost: false,
+                        connId: null,
+                    }]
+                    network.updatePlayers(updated)
+                    // Güncel listeyi herkese gönder
+                    network.broadcast({
+                        type: 'player-list',
+                        players: updated.map(p => ({ name: p.name, avatar: p.avatar, isHost: p.isHost })),
+                    })
+                }
+            }
+            if (data.type === 'game-start') {
+                // Misafir: host oyunu başlattı
+                onGameStart(getDisplayName(playerName), selectedAvatar)
+            }
+        })
+    }, [network, playerName, selectedAvatar, onGameStart])
 
     const handleHost = async () => {
         if (!playerName.trim()) return
@@ -40,8 +69,8 @@ export default function Lobby({ network, onGameStart }) {
                     name: displayName,
                     avatar: selectedAvatar,
                 })
-                onGameStart(displayName, selectedAvatar)
             }, 500)
+            setMode('joined')
         } catch (e) {
             console.error(e)
         }
@@ -56,7 +85,11 @@ export default function Lobby({ network, onGameStart }) {
 
     const handleStartGame = () => {
         const displayName = getDisplayName(playerName)
-        network.broadcast({ type: 'game-start' })
+        // Oyuncu listesini de gönder
+        network.broadcast({
+            type: 'game-start',
+            players: network.players.map(p => ({ name: p.name, avatar: p.avatar, isHost: p.isHost })),
+        })
         onGameStart(displayName, selectedAvatar)
     }
 
@@ -79,7 +112,7 @@ export default function Lobby({ network, onGameStart }) {
                     </h1>
                 </div>
                 <p className="text-text-secondary text-lg">
-                    Arkadaşlarınla aynı dalga boyunda mısın?
+                    Kimin dalga boyu daha büyük?
                 </p>
             </motion.div>
 
@@ -260,6 +293,32 @@ export default function Lobby({ network, onGameStart }) {
                                 : `Oyunu Başlat (${network.playerCount} oyuncu)`
                             }
                         </button>
+                    </motion.div>
+                )}
+
+                {/* Misafir Bekleme Ekranı */}
+                {mode === 'joined' && (
+                    <motion.div
+                        key="joined-waiting"
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.4 }}
+                        className="glass-strong rounded-3xl p-8 max-w-md w-full text-center"
+                    >
+                        <div className="text-4xl mb-4">{selectedAvatar}</div>
+                        <h2 className="text-xl font-bold mb-2">{getDisplayName(playerName)}</h2>
+                        <p className="text-text-secondary text-sm mb-6">Odaya katıldın! Host oyunu başlatmayı bekliyor...</p>
+                        <div className="flex items-center justify-center gap-2">
+                            {[0, 1, 2].map(i => (
+                                <motion.div
+                                    key={i}
+                                    className="w-2 h-2 bg-purple-400 rounded-full"
+                                    animate={{ opacity: [0.3, 1, 0.3] }}
+                                    transition={{ duration: 1.5, repeat: Infinity, delay: i * 0.3 }}
+                                />
+                            ))}
+                        </div>
                     </motion.div>
                 )}
             </AnimatePresence>
