@@ -121,10 +121,22 @@ export default function WavelengthDial({
                 onMouseDown={handlePointerDown} onTouchStart={handlePointerDown} style={{ touchAction: 'none' }}>
                 <defs>
                     <filter id="needle-shadow"><feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#000" floodOpacity="0.5" /></filter>
+                    <linearGradient id="dialBgGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#1a1a3e" stopOpacity="0.9" />
+                        <stop offset="100%" stopColor="#0a0a1a" stopOpacity="0.95" />
+                    </linearGradient>
+                    <filter id="inner-shadow">
+                        <feOffset dx="0" dy="6" />
+                        <feGaussianBlur stdDeviation="8" result="offset-blur" />
+                        <feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse" />
+                        <feFlood floodColor="black" floodOpacity="0.9" result="color" />
+                        <feComposite operator="in" in="color" in2="inverse" result="shadow" />
+                        <feComposite operator="over" in="shadow" in2="SourceGraphic" />
+                    </filter>
                 </defs>
 
-                {/* Krem arka plan */}
-                <path d={createArcPath(0, 180, 0, 200)} fill="#E8DCC8" stroke="#1a1a2e" strokeWidth="3" />
+                {/* Modern Koyu Zemin (İçe oyuk yarım ay) */}
+                <path d={createArcPath(0, 180, 0, 200)} fill="url(#dialBgGradient)" stroke="#0d0d2b" strokeWidth="2" filter="url(#inner-shadow)" />
 
                 {/* Daraltma jokeri göstergesi */}
                 {showNarrowHint && (

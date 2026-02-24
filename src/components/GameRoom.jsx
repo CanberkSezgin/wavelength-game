@@ -64,6 +64,9 @@ export default function GameRoom({ network, playerName, playerAvatar, playerColo
     const [extraWord, setExtraWord] = useState('')
     const [extraWordInput, setExtraWordInput] = useState('')
 
+    // Canlı Reaksiyon Emojileri
+    const [reactions, setReactions] = useState([])
+
     // Konfeti
     const [showConfetti, setShowConfetti] = useState(false)
 
@@ -258,6 +261,11 @@ export default function GameRoom({ network, playerName, playerAvatar, playerColo
                 case 'joker-double': setDoublePtsActive(true); break
                 case 'joker-extra-word-req': setExtraWordRequested(true); break
                 case 'joker-extra-word-res': setExtraWord(data.word); break
+                case 'reaction-sync': {
+                    setReactions(prev => [...prev.slice(-15), data.reaction])
+                    setTimeout(() => setReactions(prev => prev.filter(x => x.id !== data.reaction.id)), 1500)
+                    break
+                }
                 case 'restart-game': {
                     setPhase('setup'); setPlayerScores({}); setTurnIndex(0); setCard(null); setClue('')
                     usedCardsRef.current.clear(); turnScheduleRef.current = []; allCluesRef.current = {}; autoStartedRef.current = false
@@ -356,6 +364,15 @@ export default function GameRoom({ network, playerName, playerAvatar, playerColo
         setExtraWord(extraWordInput.trim()); setExtraWordRequested(false)
         network.broadcast({ type: 'joker-extra-word-res', word: extraWordInput.trim() })
         setExtraWordInput('')
+    }
+
+    // Emoji Reaksiyon Handlers
+    const handleReaction = (emoji) => {
+        const id = Date.now() + Math.random().toString()
+        const reaction = { id, emoji, x: 20 + Math.random() * 60 }
+        setReactions(prev => [...prev.slice(-15), reaction])
+        network.broadcast({ type: 'reaction-sync', reaction })
+        setTimeout(() => setReactions(prev => prev.filter(x => x.id !== id)), 1500)
     }
 
     // Timer bar bileşeni — belirgin ve görünür
@@ -523,7 +540,24 @@ export default function GameRoom({ network, playerName, playerAvatar, playerColo
                 </motion.div>
             )}
 
-            <div className="w-full max-w-lg mb-2">
+            <div className="w-full max-w-lg mb-2 relative">
+                {/* Floating Canlı Emojiler */}
+                <div className="absolute inset-0 pointer-events-none overflow-visible z-50">
+                    <AnimatePresence>
+                        {reactions.map(r => (
+                            <motion.div key={r.id}
+                                initial={{ opacity: 1, y: 0, scale: 0.5 }}
+                                animate={{ opacity: 0, y: -160, scale: 2 }}
+                                transition={{ duration: 1.5, ease: 'easeOut' }}
+                                className="absolute bottom-10 text-4xl drop-shadow-xl"
+                                style={{ left: `${r.x}%` }}
+                            >
+                                {r.emoji}
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
+                </div>
+
                 <WavelengthDial targetAngle={targetAngle} dialAngle={dialAngle} onAngleChange={handleDialMove}
                     showTarget={phase === 'reveal' || isPsychic} disabled={phase === 'reveal' || isPsychic}
                     leftLabel={card.left} rightLabel={card.right} moverInfo={moverInfo} showNarrowHint={showNarrowHint} />
@@ -532,6 +566,15 @@ export default function GameRoom({ network, playerName, playerAvatar, playerColo
             {/* Guess: Jokerler + Hazır */}
             {phase === 'guess' && !isPsychic && (
                 <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col items-center gap-3 w-full max-w-lg">
+                    {/* Emoji Reaksiyon Barı */}
+                    <div className="flex bg-bg-card/60 p-2 md:p-3 rounded-2xl gap-4 md:gap-6 backdrop-blur-md border border-white/5 shadow-inner mb-2">
+                        {['💩', '👈', '👉', '🎯'].map(emj => (
+                            <button key={emj} onClick={() => handleReaction(emj)} className="text-3xl md:text-4xl hover:scale-125 transition-transform hover:drop-shadow-[0_0_12px_rgba(255,255,255,0.4)] active:scale-90">
+                                {emj}
+                            </button>
+                        ))}
+                    </div>
+
                     {/* Joker butonları */}
                     <div className="flex gap-2 justify-center">
                         {myJokers.narrow && !showNarrowHint && <button onClick={useNarrowJoker} className="glass px-3 py-1.5 rounded-xl text-xs flex items-center gap-1 text-cyan-300 hover:bg-cyan-900/30 transition-colors"><Eye className="w-3.5 h-3.5" /> Daraltma</button>}
