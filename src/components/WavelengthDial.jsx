@@ -122,14 +122,14 @@ export default function WavelengthDial({
                 <defs>
                     <filter id="needle-shadow"><feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#000" floodOpacity="0.5" /></filter>
                     <linearGradient id="dialBgGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#1a1a3e" stopOpacity="0.9" />
-                        <stop offset="100%" stopColor="#0a0a1a" stopOpacity="0.95" />
+                        <stop offset="0%" stopColor="#312f5a" stopOpacity="0.9" />
+                        <stop offset="100%" stopColor="#1d1b38" stopOpacity="0.95" />
                     </linearGradient>
                     <filter id="inner-shadow">
-                        <feOffset dx="0" dy="6" />
-                        <feGaussianBlur stdDeviation="8" result="offset-blur" />
+                        <feOffset dx="0" dy="8" />
+                        <feGaussianBlur stdDeviation="10" result="offset-blur" />
                         <feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse" />
-                        <feFlood floodColor="black" floodOpacity="0.9" result="color" />
+                        <feFlood floodColor="black" floodOpacity="0.8" result="color" />
                         <feComposite operator="in" in="color" in2="inverse" result="shadow" />
                         <feComposite operator="over" in="shadow" in2="SourceGraphic" />
                     </filter>

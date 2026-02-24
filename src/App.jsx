@@ -12,12 +12,7 @@ export default function App() {
     const [customCards, setCustomCards] = useState([])
 
     const handleGameStart = (name, avatar, color, cards) => {
-        // Easter Egg: Spesifik isim kontrolü (case-insensitive ve boşluksuz kontrol ediliyor)
-        const checkName = name.toLowerCase().replace(/\s+/g, '')
-        const easterEggNames = ['fakirveteriner', 'samet']
-        const finalName = easterEggNames.includes(checkName) ? 'GAY' : name
-
-        setPlayerName(finalName)
+        setPlayerName(name)
         setPlayerAvatar(avatar)
         if (color) setPlayerColor(color)
         if (cards) setCustomCards(cards)
