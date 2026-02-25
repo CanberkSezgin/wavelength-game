@@ -91,7 +91,8 @@ export default function WavelengthDial({
         const x1i = cx - innerR * Math.cos(toRad(endAngle)), y1i = cy - innerR * Math.sin(toRad(endAngle))
         const x2i = cx - innerR * Math.cos(toRad(startAngle)), y2i = cy - innerR * Math.sin(toRad(startAngle))
         const la = endAngle - startAngle > 180 ? 1 : 0
-        return `M ${x1o} ${y1o} A ${outerR} ${outerR} 0 ${la} 0 ${x2o} ${y2o} L ${x1i} ${y1i} A ${innerR} ${innerR} 0 ${la} 1 ${x2i} ${y2i} Z`
+        // sweep flag 1 for outer curve (upwards), 0 for inner curve
+        return `M ${x1o} ${y1o} A ${outerR} ${outerR} 0 ${la} 1 ${x2o} ${y2o} L ${x1i} ${y1i} A ${innerR} ${innerR} 0 ${la} 0 ${x2i} ${y2i} Z`
     }
 
     const needleEnd = angleToPosition(localAngle, 200)

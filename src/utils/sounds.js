@@ -81,14 +81,37 @@ export function playTimerWarn() {
     } catch (e) { }
 }
 
-// === YENİ SES VE MÜZİK SİSTEMİ (MP3 Placeholderlar) === //
+// === YENİ SES VE MÜZİK SİSTEMİ === //
 
 export const sfxPoop = new Audio('https://www.myinstants.com/media/sounds/fart-with-reverb.mp3')
 export const sfxTada = new Audio('https://www.myinstants.com/media/sounds/tada.mp3')
-export const sfxSwoosh1 = new Audio('https://actions.google.com/sounds/v1/cartoon/whoosh.ogg')
-export const sfxSwoosh2 = new Audio('https://actions.google.com/sounds/v1/cartoon/whoosh.ogg')
 
-export const bgMusic = new Audio('https://actions.google.com/sounds/v1/water/rain_on_roof.ogg')
+// Sağa ve sola kaydırma seslerini garanti çalışması için (CORS/ORB yememesi için) tarayıcıda Web Audio API ile sentezliyoruz:
+export function playSwoosh(direction) {
+    try {
+        const ctx = getCtx()
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.connect(gain); gain.connect(ctx.destination)
+
+        osc.type = 'sine'
+        if (direction === 'left') {
+            osc.frequency.setValueAtTime(800, ctx.currentTime)
+            osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.3)
+        } else {
+            osc.frequency.setValueAtTime(100, ctx.currentTime)
+            osc.frequency.exponentialRampToValueAtTime(800, ctx.currentTime + 0.3)
+        }
+
+        gain.gain.setValueAtTime(0.3, ctx.currentTime)
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3)
+
+        osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.3)
+    } catch (e) { }
+}
+
+// BGM (Background Music) - Test için %100 çalışan ve CORS engeli olmayan SoundHelix MP3'ü
+export const bgMusic = new Audio('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3')
 bgMusic.loop = true
 bgMusic.volume = 0.3 // Varsayılan BGM sesi
 
@@ -96,7 +119,7 @@ export function playEmojiSfx(emoji) {
     try {
         if (emoji === '💩') { sfxPoop.currentTime = 0; sfxPoop.play() }
         if (emoji === '🎯') { sfxTada.currentTime = 0; sfxTada.play() }
-        if (emoji === '👈') { sfxSwoosh1.currentTime = 0; sfxSwoosh1.play() }
-        if (emoji === '👉') { sfxSwoosh2.currentTime = 0; sfxSwoosh2.play() }
+        if (emoji === '👈') { playSwoosh('left') }
+        if (emoji === '👉') { playSwoosh('right') }
     } catch (e) { console.error("SFX Error: ", e) }
 }
