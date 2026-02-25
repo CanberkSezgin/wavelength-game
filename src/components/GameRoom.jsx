@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { RotateCw, Trophy, Sparkles, RefreshCw, CheckCircle2, PenLine, ChevronRight, Zap, Eye } from 'lucide-react'
 import WavelengthDial from './WavelengthDial'
 import CARDS from '../data/cards'
-import { playBip, playCelebration, playFail, playTimerWarn } from '../utils/sounds'
+import { playBip, playCelebration, playFail, playTimerWarn, playEmojiSfx } from '../utils/sounds'
 
 // Konfeti bileşeni — hooks kuralına uygun
 function Confetti({ active }) {
@@ -262,6 +262,7 @@ export default function GameRoom({ network, playerName, playerAvatar, playerColo
                 case 'joker-extra-word-req': setExtraWordRequested(true); break
                 case 'joker-extra-word-res': setExtraWord(data.word); break
                 case 'reaction-sync': {
+                    playEmojiSfx(data.reaction.emoji)
                     setReactions(prev => [...prev.slice(-15), data.reaction])
                     setTimeout(() => setReactions(prev => prev.filter(x => x.id !== data.reaction.id)), 1500)
                     break
@@ -368,6 +369,7 @@ export default function GameRoom({ network, playerName, playerAvatar, playerColo
 
     // Emoji Reaksiyon Handlers
     const handleReaction = (emoji) => {
+        playEmojiSfx(emoji)
         const id = Date.now() + Math.random().toString()
         const reaction = { id, emoji, x: 20 + Math.random() * 60 }
         setReactions(prev => [...prev.slice(-15), reaction])

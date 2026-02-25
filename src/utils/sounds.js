@@ -77,7 +77,26 @@ export function playTimerWarn() {
         osc.connect(gain); gain.connect(ctx.destination)
         osc.type = 'square'; osc.frequency.value = 880
         gain.gain.setValueAtTime(0.04, ctx.currentTime)
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06)
         osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.06)
     } catch (e) { }
+}
+
+// === YENİ SES VE MÜZİK SİSTEMİ (MP3 Placeholderlar) === //
+
+export const sfxPoop = new Audio('https://www.myinstants.com/media/sounds/fart-with-reverb.mp3')
+export const sfxTada = new Audio('https://www.myinstants.com/media/sounds/tada.mp3')
+export const sfxSwoosh1 = new Audio('https://www.myinstants.com/media/sounds/swoosh-transition.mp3')
+export const sfxSwoosh2 = new Audio('https://www.myinstants.com/media/sounds/swoosh-transition.mp3')
+
+export const bgMusic = new Audio('https://cdn.pixabay.com/download/audio/2022/01/18/audio_d08ea04423.mp3?filename=lofi-study-112191.mp3')
+bgMusic.loop = true
+bgMusic.volume = 0.3 // Varsayılan BGM sesi
+
+export function playEmojiSfx(emoji) {
+    try {
+        if (emoji === '💩') { sfxPoop.currentTime = 0; sfxPoop.play() }
+        if (emoji === '🎯') { sfxTada.currentTime = 0; sfxTada.play() }
+        if (emoji === '👈') { sfxSwoosh1.currentTime = 0; sfxSwoosh1.play() }
+        if (emoji === '👉') { sfxSwoosh2.currentTime = 0; sfxSwoosh2.play() }
+    } catch (e) { console.error("SFX Error: ", e) }
 }

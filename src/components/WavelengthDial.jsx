@@ -72,14 +72,15 @@ export default function WavelengthDial({
         }
     }, [handlePointerMove, handlePointerUp])
 
-    // Üçgen dilim path
+    // Üçgen dilim path (Yay düzeltmesi yapıldı)
     const createTrianglePath = (centerAngle, halfSpread, radius) => {
         const cx = 250, cy = 250
         const toRad = a => (a * Math.PI) / 180
         const sA = centerAngle - halfSpread, eA = centerAngle + halfSpread
         const x1 = cx - radius * Math.cos(toRad(sA)), y1 = cy - radius * Math.sin(toRad(sA))
         const x2 = cx - radius * Math.cos(toRad(eA)), y2 = cy - radius * Math.sin(toRad(eA))
-        return `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 0 0 ${x2} ${y2} Z`
+        // Sweep flag (sonuncu 0 veya 1 parametresi) 1 yapıldı ki dışa doğru bombeli pikselsiz pürüzsüz bir yay çizsin
+        return `M ${cx} ${cy} L ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2} Z`
     }
 
     // Arc path (yarım daire)
@@ -121,22 +122,10 @@ export default function WavelengthDial({
                 onMouseDown={handlePointerDown} onTouchStart={handlePointerDown} style={{ touchAction: 'none' }}>
                 <defs>
                     <filter id="needle-shadow"><feDropShadow dx="0" dy="1" stdDeviation="2" floodColor="#000" floodOpacity="0.5" /></filter>
-                    <linearGradient id="dialBgGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#312f5a" stopOpacity="0.9" />
-                        <stop offset="100%" stopColor="#1d1b38" stopOpacity="0.95" />
-                    </linearGradient>
-                    <filter id="inner-shadow">
-                        <feOffset dx="0" dy="8" />
-                        <feGaussianBlur stdDeviation="10" result="offset-blur" />
-                        <feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse" />
-                        <feFlood floodColor="black" floodOpacity="0.8" result="color" />
-                        <feComposite operator="in" in="color" in2="inverse" result="shadow" />
-                        <feComposite operator="over" in="shadow" in2="SourceGraphic" />
-                    </filter>
                 </defs>
 
-                {/* Modern Koyu Zemin (İçe oyuk yarım ay) */}
-                <path d={createArcPath(0, 180, 0, 200)} fill="url(#dialBgGradient)" stroke="#0d0d2b" strokeWidth="2" filter="url(#inner-shadow)" />
+                {/* Açık Renkli, Göz Yormayan, Hafif Saydam Yarım Ay Arka Planı (0-180) */}
+                <path d={createArcPath(0, 180, 0, 200)} fill="rgba(255, 255, 255, 0.08)" stroke="rgba(255, 255, 255, 0.15)" strokeWidth="2" />
 
                 {/* Daraltma jokeri göstergesi */}
                 {showNarrowHint && (
