@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Wifi, Users, ArrowRight, Copy, Check, Radio, Plus, X } from 'lucide-react'
 import AVATARS from '../data/avatars'
 import { applyNameTrick } from '../utils/nameTricks'
+import { bgMusic } from '../utils/sounds'
 
 const PLAYER_COLORS = [
     '#EF4444', '#3B82F6', '#10B981', '#8B5CF6',
@@ -49,6 +50,7 @@ export default function Lobby({ network, onGameStart }) {
 
     const handleHost = async () => {
         if (!playerName.trim()) return
+        bgMusic.play().catch(e => console.log('BGM Autoplay engeli:', e))
         setLoading(true)
         try {
             await network.hostGame(getDisplayName(playerName), selectedAvatar)
@@ -59,6 +61,7 @@ export default function Lobby({ network, onGameStart }) {
 
     const handleJoin = async () => {
         if (!playerName.trim() || !joinCode.trim()) return
+        bgMusic.play().catch(e => console.log('BGM Autoplay engeli:', e))
         setLoading(true)
         try {
             const displayName = getDisplayName(playerName)

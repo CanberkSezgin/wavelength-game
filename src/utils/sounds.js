@@ -85,10 +85,10 @@ export function playTimerWarn() {
 
 export const sfxPoop = new Audio('https://www.myinstants.com/media/sounds/fart-with-reverb.mp3')
 export const sfxTada = new Audio('https://www.myinstants.com/media/sounds/tada.mp3')
-export const sfxSwoosh1 = new Audio('https://www.myinstants.com/media/sounds/swoosh-transition.mp3')
-export const sfxSwoosh2 = new Audio('https://www.myinstants.com/media/sounds/swoosh-transition.mp3')
+export const sfxSwoosh1 = new Audio('https://actions.google.com/sounds/v1/cartoon/whoosh.ogg')
+export const sfxSwoosh2 = new Audio('https://actions.google.com/sounds/v1/cartoon/whoosh.ogg')
 
-export const bgMusic = new Audio('https://cdn.pixabay.com/download/audio/2022/01/18/audio_d08ea04423.mp3?filename=lofi-study-112191.mp3')
+export const bgMusic = new Audio('https://actions.google.com/sounds/v1/water/rain_on_roof.ogg')
 bgMusic.loop = true
 bgMusic.volume = 0.3 // Varsayılan BGM sesi
 

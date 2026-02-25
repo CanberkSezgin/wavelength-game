@@ -125,7 +125,7 @@ export default function WavelengthDial({
                 </defs>
 
                 {/* Açık Renkli, Göz Yormayan, Hafif Saydam Yarım Ay Arka Planı (0-180) */}
-                <path d={createArcPath(0, 180, 0, 200)} fill="rgba(255, 255, 255, 0.08)" stroke="rgba(255, 255, 255, 0.15)" strokeWidth="2" />
+                <path d={createArcPath(0, 180, 0, 200)} fill="rgba(226, 232, 240, 0.35)" stroke="rgba(203, 213, 225, 0.5)" strokeWidth="2" />
 
                 {/* Daraltma jokeri göstergesi */}
                 {showNarrowHint && (
