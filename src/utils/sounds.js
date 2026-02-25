@@ -110,10 +110,34 @@ export function playSwoosh(direction) {
     } catch (e) { }
 }
 
-// BGM (Background Music) - Test için %100 çalışan ve CORS engeli olmayan SoundHelix MP3'ü
-export const bgMusic = new Audio('https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3')
+// BGM (Background Music) - Lokal dosya olarak güncellendi (Web Audio API CORS için)
+export const bgMusic = new Audio('/bgm.mp3')
 bgMusic.loop = true
-bgMusic.volume = 0.3 // Varsayılan BGM sesi
+
+let bgGainNode = null
+let bgRouted = false
+
+// iOS ve Mobil Tarayıcılar HTMLMediaElement.volume = ... atamasını reddettiği için
+// Sesi bir Web Audio API GainNode üzerinden geçirerek programatik ses kontrolü sağlıyoruz.
+export function setBgmVolume(vol) {
+    if (!bgRouted) {
+        try {
+            const ctx = getCtx()
+            const source = ctx.createMediaElementSource(bgMusic)
+            bgGainNode = ctx.createGain()
+            source.connect(bgGainNode)
+            bgGainNode.connect(ctx.destination)
+            bgRouted = true
+        } catch (e) {
+            console.warn("Mobil BGM Yönlendirme Hatası:", e)
+        }
+    }
+
+    if (bgGainNode) {
+        bgGainNode.gain.value = vol
+    }
+    bgMusic.volume = vol // Bilgisayarlar için Fallback
+}
 
 export function playEmojiSfx(emoji) {
     try {

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNetwork } from './hooks/useNetwork'
 import { Volume2, VolumeX } from 'lucide-react'
-import { bgMusic } from './utils/sounds'
+import { bgMusic, setBgmVolume as setGlobalBgmVolume } from './utils/sounds'
 import Lobby from './components/Lobby'
 import GameRoom from './components/GameRoom'
 
@@ -43,7 +43,7 @@ export default function App() {
     }, [])
 
     useEffect(() => {
-        bgMusic.volume = isMuted ? 0 : bgmVolume
+        setGlobalBgmVolume(isMuted ? 0 : bgmVolume)
     }, [bgmVolume, isMuted])
 
     return (
@@ -58,11 +58,12 @@ export default function App() {
                             type="range"
                             min="0" max="1" step="0.05"
                             value={isMuted ? 0 : bgmVolume}
+                            onTouchStart={(e) => e.stopPropagation()}
                             onChange={(e) => {
                                 setBgmVolume(parseFloat(e.target.value))
                                 if (parseFloat(e.target.value) > 0) setIsMuted(false)
                             }}
-                            className="w-24 accent-purple-500 rounded-full bg-bg-card h-2"
+                            className="w-24 md:w-32 accent-purple-500 rounded-full bg-bg-card h-2"
                         />
                     )}
                     <button
