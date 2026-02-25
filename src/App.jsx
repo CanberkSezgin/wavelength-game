@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNetwork } from './hooks/useNetwork'
 import { Volume2, VolumeX } from 'lucide-react'
 import { bgMusic } from './utils/sounds'
