@@ -9,6 +9,14 @@ export function applyNameTrick(name) {
         return 'GAY'
     }
 
+    // Yeni Easter Egg'ler
+    if (noSpace === 'furkan') {
+        return 'düzenbaz'
+    }
+    if (noSpace === 'naci') {
+        return 'hidrofobik'
+    }
+
     // Elif varyasyonları
     if (lower === 'elif') {
         return 'Kısa Saçlı Lavuk'
