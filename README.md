@@ -2,7 +2,7 @@
 
 A sleek, modern, and fully interactive web implementation of the popular board game **Wavelength**. This project brings the social guessing game to the browser with a focus on high-end UI/UX, real-time peer-to-peer connectivity, and a premium feel.
 
-![Wavelength Preview](https://wavelength-game-eta.vercel.app/og-image.jpg) *(Not: Buraya kendi yayındaki sitenin ekran görüntüsünü ekleyebilirsin)*
+![Wavelength Preview](https://wavelength-game-eta.vercel.app/og-image.jpg) 
 
 ##  Key Features
 
